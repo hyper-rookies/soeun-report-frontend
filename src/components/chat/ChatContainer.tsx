@@ -10,9 +10,6 @@ interface ChatContainerProps {
   conversationId: string;
 }
 
-/**
- * 채팅 창 통합 컴포넌트
- */
 export const ChatContainer: FC<ChatContainerProps> = ({ conversationId }) => {
   const { messages, isLoading, error, isStreamingComplete } = useChatStore();
   const { sendMessage } = useSSE(conversationId);
@@ -22,11 +19,11 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--surface-canvas)] overflow-hidden">
       {/* 에러 표시 */}
       {error && (
-        <div className="bg-red-50 border-b border-red-200 p-4">
-          <p className="text-red-600 text-sm">{error}</p>
+        <div className="bg-[hsl(0,70%,96%)] border-b border-[hsl(0,72%,52%)] p-3 flex justify-center">
+          <p className="text-[hsl(0,72%,40%)] text-[13px] font-medium">{error}</p>
         </div>
       )}
 

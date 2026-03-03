@@ -9,9 +9,6 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
-/**
- * 메시지 입력 폼 컴포넌트
- */
 export const ChatInput: FC<ChatInputProps> = ({
   onSend,
   isLoading = false,
@@ -21,20 +18,15 @@ export const ChatInput: FC<ChatInputProps> = ({
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 자동 높이 조절
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(
-        textareaRef.current.scrollHeight,
-        120
-      )}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [input]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!input.trim()) return;
 
     if (input.length > UI_CONFIG.MESSAGE_MAX_LENGTH) {
@@ -52,7 +44,6 @@ export const ChatInput: FC<ChatInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Shift+Enter: 줄바꿈, Enter: 전송
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend(e as unknown as React.FormEvent);
@@ -62,41 +53,41 @@ export const ChatInput: FC<ChatInputProps> = ({
   const isButtonDisabled = disabled || isLoading || isSending || !input.trim();
 
   return (
-    <form
-      onSubmit={handleSend}
-      className="border-t border-gray-200 bg-white p-4"
-    >
-      <div className="flex gap-3">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈)"
-          disabled={disabled || isLoading}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-          rows={1}
-          maxLength={UI_CONFIG.MESSAGE_MAX_LENGTH}
-        />
+    // px-6 py-5로 여백을 시원하게 늘림
+    <div className="border-t border-[var(--border-default)] bg-[var(--surface-elevated)] px-6 py-5">
+      {/* w-full을 추가하여 가로 사이즈 꽉 채우기 */}
+      <form onSubmit={handleSend} className="w-full max-w-4xl mx-auto flex flex-col">
+        <div className="flex gap-4 items-end w-full">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="분석할 내용을 입력하세요... (Shift+Enter로 줄바꿈)"
+            disabled={disabled || isLoading}
+            className="flex-1 w-full px-4 py-3 text-[14px] text-[var(--text-ink)] placeholder-[var(--text-ghost)] bg-[var(--surface-well)] border border-[var(--border-default)] rounded-[8px] resize-none focus:outline-none focus:border-[var(--accent-default)] focus:ring-1 focus:ring-[var(--accent-default)] disabled:opacity-60 disabled:cursor-not-allowed transition-shadow"
+            rows={1}
+            maxLength={UI_CONFIG.MESSAGE_MAX_LENGTH}
+          />
 
-        <button
-          type="submit"
-          disabled={isButtonDisabled}
-          className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-            isButtonDisabled
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700'
-          }`}
-        >
-          {isSending ? '전송 중...' : '전송'}
-        </button>
-      </div>
+          <button
+            type="submit"
+            disabled={isButtonDisabled}
+            className={`h-[46px] px-8 rounded-[6px] text-[13px] font-semibold transition-colors shrink-0 ${
+              isButtonDisabled
+                ? 'bg-[var(--surface-canvas)] text-[var(--text-ghost)] border border-[var(--border-default)] cursor-not-allowed'
+                : 'bg-[var(--accent-default)] text-[var(--accent-text)] hover:bg-[var(--accent-dark)] active:bg-[var(--accent-deeper)] shadow-sm'
+            }`}
+          >
+            {isSending ? '전송 중...' : '전송'}
+          </button>
+        </div>
 
-      {/* 문자 수 표시 */}
-      <div className="text-xs text-gray-500 mt-2 text-right">
-        {input.length} / {UI_CONFIG.MESSAGE_MAX_LENGTH}
-      </div>
-    </form>
+        <div className="text-[11px] text-[var(--text-soft)] mt-2 text-right font-mono">
+          {input.length} / {UI_CONFIG.MESSAGE_MAX_LENGTH}
+        </div>
+      </form>
+    </div>
   );
 };
 

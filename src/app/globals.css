@@ -1,46 +1,33 @@
 @import "tailwindcss";
 
 @theme {
-  /* ─── Surfaces — cool slate (hsl 220°) ─────────────────────────────────── */
-  /* Same hue family throughout. Only lightness shifts. Never different hues. */
-  --color-canvas: hsl(220 16% 96%);        /* page background                */
-  --color-surface: hsl(220 18% 99%);       /* cards, panels                  */
-  --color-well: hsl(220 14% 94%);          /* inset inputs — receives content */
-  --color-surface-ai: hsl(245 30% 98%);    /* AI message bg — subtle indigo  */
-
-  /* ─── Text — four levels ────────────────────────────────────────────────── */
-  --color-ink: hsl(222 25% 10%);           /* primary content                */
-  --color-ink-dim: hsl(222 15% 35%);       /* supporting / secondary         */
-  --color-ink-soft: hsl(222 10% 55%);      /* metadata, timestamps           */
-  --color-ink-ghost: hsl(222 8% 72%);      /* placeholder, disabled          */
-
-  /* ─── Accent — indigo ───────────────────────────────────────────────────── */
-  /* Deeper authority than blue-500. Not the Kakao yellow (that's data, not chrome). */
-  --color-accent: hsl(245 75% 58%);
-  --color-accent-dark: hsl(245 75% 50%);   /* hover state                    */
-  --color-accent-dim: hsl(245 75% 97%);    /* subtle accent background       */
-
-  /* ─── Semantic ──────────────────────────────────────────────────────────── */
-  /* Same signals as Google Ads / Kakao Moment dashboards the user already knows */
-  --color-success: hsl(158 64% 38%);
-  --color-success-dim: hsl(158 60% 95%);
-  --color-success-text: hsl(158 64% 28%);
-
-  --color-warning: hsl(38 92% 48%);
-  --color-warning-dim: hsl(38 90% 95%);
-  --color-warning-text: hsl(38 92% 30%);
-
-  --color-destructive: hsl(0 72% 52%);
-  --color-destructive-dim: hsl(0 70% 96%);
-  --color-destructive-text: hsl(0 72% 40%);
 }
 
 :root {
-  /* ─── Borders — low-opacity rgba ───────────────────────────────────────── */
-  /* Structure without noise. The gap between professional and amateur.       */
-  --bd: rgba(100, 116, 139, 0.14);         /* standard separation            */
-  --bd-faint: rgba(100, 116, 139, 0.08);   /* softest — section grouping     */
-  --bd-strong: rgba(100, 116, 139, 0.28);  /* emphasis boundaries            */
+  /* Surfaces */
+  --surface-canvas: hsl(220, 16%, 96%);
+  --surface-elevated: hsl(220, 18%, 99%);
+  --surface-overlay: #ffffff;
+  --surface-well: hsl(220, 14%, 94%);
+  --surface-ai: hsl(245, 30%, 98%);
+
+  /* Text */
+  --text-ink: hsl(222, 25%, 10%);
+  --text-dim: hsl(222, 15%, 35%);
+  --text-soft: hsl(222, 10%, 55%);
+  --text-ghost: hsl(222, 8%, 72%);
+
+  /* Borders */
+  --border-faint: rgba(100, 116, 139, 0.08);
+  --border-default: rgba(100, 116, 139, 0.14);
+  --border-strong: rgba(100, 116, 139, 0.28);
+  --border-accent: hsl(245, 75%, 58%);
+
+  /* Accent */
+  --accent-default: hsl(245, 75%, 58%);
+  --accent-dark: hsl(245, 75%, 50%);
+  --accent-deeper: hsl(245, 75%, 44%);
+  --accent-text: #ffffff;
 }
 
 * {
@@ -54,28 +41,26 @@ html {
 }
 
 body {
-  background-color: hsl(220, 16%, 96%);
-  color: hsl(222, 25%, 10%);
+  background-color: var(--surface-canvas);
+  color: var(--text-ink);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── Scrollbar — quiet, on-brand ────────────────────────────────────────── */
+/* 스크롤바 스타일 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--surface-canvas);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.22);
-  border-radius: 3px;
+  background: var(--text-ghost);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.38);
+  background: var(--text-soft);
 }

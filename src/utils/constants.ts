@@ -2,7 +2,9 @@
  * API 기본 설정
  */
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080',
+  // Dev: reads from .env.local → 'http://localhost:8080'
+  // Prod: NEXT_PUBLIC_API_BASE_URL unset → '' → relative paths → Vercel rewrite
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
   TIMEOUT: 30000, // 30초
   RETRY_COUNT: 3,
 };

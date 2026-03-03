@@ -10,6 +10,31 @@ export const useSSE = (conversationId: string) => {
   const store = useChatStore();
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // ✅ [해결의 핵심]: 전체 store가 아닌, 변경되지 않는 함수(setLoading)만 빼서 사용
+  const { setLoading } = store;
+
+  /**
+   * SSE 연결 해제
+   * 이제 store가 바뀌어도 이 함수는 재시동되지 않으므로 무한 루프가 끊어짐!
+   */
+  const closeConnection = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+  }, [setLoading]);
+
+  /**
+   * 컴포넌트 언마운트 시 연결 정리
+   * closeConnection이 안전하게 고정되었으므로 마운트/언마운트 시 1번만 실행됨
+   */
+  useEffect(() => {
+    return () => {
+      closeConnection();
+    };
+  }, [closeConnection]);
+
   /**
    * 메시지 전송 및 SSE 스트리밍 시작
    */
@@ -78,28 +103,9 @@ export const useSSE = (conversationId: string) => {
         store.setLoading(false);
       }
     },
+    // sendMessage 내부에서는 store의 다양한 값을 써야 하므로 store 전체를 의존성에 둠
     [conversationId, store]
   );
-
-  /**
-   * SSE 연결 해제
-   */
-  const closeConnection = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    store.setLoading(false);
-  }, [store]);
-
-  /**
-   * 컴포넌트 언마운트 시 연결 정리
-   */
-  useEffect(() => {
-    return () => {
-      closeConnection();
-    };
-  }, [closeConnection]);
 
   return {
     sendMessage,
