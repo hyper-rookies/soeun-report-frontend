@@ -1,12 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-// import { useConversation } from '@/hooks/useConversation'; // 주석 해제하여 사용
 import { useState } from 'react';
+// import { useConversation } from '@/hooks/useConversation'; // 주석 해제 후 사용
 
 export default function Home() {
   const router = useRouter();
-  // const { createConversation, isLoading } = useConversation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,59 +29,45 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
-      <div className="text-center w-full max-w-3xl space-y-10">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+      <div className="text-center w-full max-w-2xl space-y-10">
         
-        {/* 환영 메시지 */}
-        <div className="space-y-3">
-          <h2 className="text-[22px] font-bold text-[var(--text-ink)] tracking-[-0.02em]">
-            광고 성과 분석
+        {/* 환영 메시지 및 기획 설명 */}
+        <div className="space-y-4">
+          <h2 className="text-[28px] font-bold text-[var(--text-ink)] tracking-[-0.02em]">
+            카카오/구글 광고 AI 리포트
           </h2>
-          <p className="text-[14px] text-[var(--text-dim)]">
-            자연어로 카카오, 구글 광고 데이터를 분석하세요
-          </p>
-        </div>
-
-        {/* 기능 설명 카드: 그림자 제거, border-only 전략 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 bg-[var(--surface-elevated)] rounded-[8px] border border-[var(--border-default)] text-left">
-            <h3 className="text-[14px] font-semibold text-[var(--text-ink)] tracking-[-0.01em]">자연어 질문</h3>
-            <p className="text-[13px] text-[var(--text-soft)] mt-2 leading-[1.5]">
-              "어제 클릭수는?" 처럼 간단하게 질문하세요.
+          
+          <div className="bg-[var(--surface-elevated)] border border-[var(--border-default)] rounded-[8px] p-6 text-left space-y-3 shadow-sm mx-auto">
+            <p className="text-[14px] text-[var(--text-dim)] leading-[1.6]">
+              광고주의 <strong className="text-[var(--text-ink)] font-semibold">카카오 모먼트</strong> 디스플레이 광고와 <strong className="text-[var(--text-ink)] font-semibold">구글 검색광고(Google Ads)</strong> 데이터를 수집하여, 자연어 대화 인터페이스로 성과를 조회하고 분석할 수 있는 AI 리포트 시스템입니다.
             </p>
-          </div>
-
-          <div className="p-5 bg-[var(--surface-elevated)] rounded-[8px] border border-[var(--border-default)] text-left">
-            <h3 className="text-[14px] font-semibold text-[var(--text-ink)] tracking-[-0.01em]">실시간 분석</h3>
-            <p className="text-[13px] text-[var(--text-soft)] mt-2 leading-[1.5]">
-              AI가 SQL을 생성하고 데이터를 바로 조회합니다.
+            <p className="text-[14px] text-[var(--text-dim)] leading-[1.6]">
+              사용자는 복잡한 대시보드를 직접 조작하지 않고, 채팅창에 질문을 입력하면 AI가 데이터를 조회하고 차트와 표로 답변합니다.
             </p>
-          </div>
-
-          <div className="p-5 bg-[var(--surface-elevated)] rounded-[8px] border border-[var(--border-default)] text-left">
-            <h3 className="text-[14px] font-semibold text-[var(--text-ink)] tracking-[-0.01em]">대화 저장</h3>
-            <p className="text-[13px] text-[var(--text-soft)] mt-2 leading-[1.5]">
-              모든 분석 기록과 대화가 자동으로 저장됩니다.
-            </p>
+            <div className="pt-4 mt-2 border-t border-[var(--border-faint)]">
+              <p className="text-[15px] font-bold text-[var(--accent-default)] flex items-center gap-2">
+                <span className="text-[18px]">💡</span> 핵심 가치 : "대시보드를 보지 말고, 대화하세요."
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* CTA 버튼: Accent 컬러 및 단단한 radius(6px) 적용 */}
+        {/* CTA 버튼 */}
         <div>
           <button
             onClick={handleStartConversation}
             disabled={isLoading}
-            className={`px-6 py-3 rounded-[6px] text-[14px] font-semibold transition-colors ${
+            className={`px-8 py-3.5 rounded-[6px] text-[15px] font-semibold transition-all shadow-sm ${
               isLoading
                 ? 'bg-[var(--surface-well)] text-[var(--text-ghost)] cursor-not-allowed border border-[var(--border-faint)]'
-                : 'bg-[var(--accent-default)] text-[var(--accent-text)] hover:bg-[var(--accent-dark)] active:bg-[var(--accent-deeper)]'
+                : 'bg-[var(--accent-default)] text-[var(--accent-text)] hover:bg-[var(--accent-dark)] active:bg-[var(--accent-deeper)] hover:shadow'
             }`}
           >
-            {isLoading ? '대화 생성 중...' : '새 대화 시작'}
+            {isLoading ? '대화 생성 중...' : '새로운 분석 시작하기'}
           </button>
         </div>
 
-        {/* 에러 메시지 */}
         {error && (
           <div className="p-4 bg-[hsl(0,70%,96%)] border border-[hsl(0,72%,52%)] rounded-[6px]">
             <p className="text-[hsl(0,72%,40%)] text-[13px] font-medium">{error}</p>

@@ -23,25 +23,24 @@ export const ChatWindow: FC<ChatWindowProps> = ({
 
   if (messages.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-[var(--text-ghost)]">
-        <div className="text-center">
-          <p className="text-[14px] font-medium tracking-[-0.01em] mb-1">대화 기록이 없습니다</p>
-          <p className="text-[13px] text-[var(--text-soft)]">분석하고 싶은 내용을 하단에 입력해주세요.</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-full bg-[var(--surface-canvas)] px-4">
+        <div className="w-12 h-12 mb-4 rounded-full bg-[var(--surface-ai)] border border-[var(--border-default)] flex items-center justify-center text-[22px]">✨</div>
+        <p className="text-[17px] font-semibold text-[var(--text-ink)] mb-1.5 tracking-[-0.01em]">무엇을 분석해 드릴까요?</p>
+        <p className="text-[13px] text-[var(--text-soft)]">카카오 모먼트나 구글 검색광고의 성과를 질문해 보세요.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-8">
-      <div className="max-w-4xl mx-auto">
+    // 💡 핵심 픽스: flex 속성을 빼고 단순 block 처리 후, 내부를 800px로 묶어서 강제 중앙 정렬
+    <div className="flex-1 overflow-y-auto w-full bg-[var(--surface-canvas)] py-8 scroll-smooth">
+      <div className="max-w-[800px] mx-auto px-4 sm:px-6 flex flex-col">
         {messages.map((message, index) => {
           const isLastMessage = index === messages.length - 1;
           const isStreaming = isLastMessage && isLoading && !isStreamingComplete;
 
           return (
             <ChatMessage
-              // 핵심 수정: timestamp, role, index를 조합하여 완벽하게 고유한 키 생성
               key={`${message.timestamp}-${message.role}-${index}`}
               message={message}
               isStreaming={isStreaming}
@@ -49,22 +48,19 @@ export const ChatWindow: FC<ChatWindowProps> = ({
           );
         })}
 
-        {/* 로딩 인디케이터: 통통 튀는 공 대신 전문적인 펄스 효과 */}
+        {/* 로딩 인디케이터 */}
         {isLoading && isStreamingComplete && (
-          <div className="flex w-full mb-6 justify-start">
-            <div className="px-5 py-4 bg-[var(--surface-ai)] border-l-[3px] border-l-[var(--border-default)] rounded-r-[8px]">
-              <div className="flex items-center gap-2 text-[13px] text-[var(--text-dim)] font-medium animate-pulse">
-                <svg className="w-4 h-4 text-[var(--accent-default)] animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                데이터를 분석하고 있습니다...
-              </div>
-            </div>
+          <div className="flex w-full justify-start mb-8 gap-4">
+             <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-sm mt-1">
+                <span className="text-white text-[16px] leading-none animate-pulse">✨</span>
+             </div>
+             <div className="flex items-center gap-2 text-[15px] text-gray-500 font-medium">
+               <span className="animate-pulse">데이터를 조회하고 분석하는 중입니다...</span>
+             </div>
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-6" />
       </div>
     </div>
   );

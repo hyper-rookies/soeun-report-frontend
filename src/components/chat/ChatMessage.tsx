@@ -13,76 +13,72 @@ interface ChatMessageProps {
 export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false }) => {
   const isUser = message.role === 'user';
 
-  // 1. 기본 줄바꿈 문자 치환
   let processedContent = message.content
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '');
 
-  // 2. 💡 백엔드에서 잃어버린 줄바꿈을 프론트에서 정규식으로 완벽 복원!
   if (!isUser) {
     processedContent = processedContent
-      // 주요 이모지 앞에서 크게 줄바꿈
       .replace(/(📊|⚠️|🔍|📝)/g, '\n\n$1 ')
-      // 헤더(###) 앞에서 크게 줄바꿈 + 뒤에 띄어쓰기 보장
       .replace(/(###)\s*/g, '\n\n### ')
-      // 숫자형 리스트 (1., 2.) 분리 (소수점 6.65% 같은 건 무시하도록 처리)
       .replace(/(\d+\.)(?![\d])/g, '\n$1 ')
-      // 하이픈(-) 리스트 분리 (음수와 헷갈리지 않게 뒤에 글자가 올 때만)
       .replace(/(-\s*[가-힣a-zA-Z])/g, '\n$1 ');
   }
 
-  return (
-    <div className={`flex w-full mb-8 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`relative ${
-          isUser
-            ? 'max-w-[80%] lg:max-w-2xl px-5 py-3.5 bg-[var(--surface-well)] border border-[var(--border-default)] rounded-[8px] text-[var(--text-ink)]'
-            : 'w-full px-6 py-5 bg-[var(--surface-ai)] border border-[var(--border-faint)] border-l-[3px] border-l-[var(--accent-default)] rounded-r-[8px] text-[var(--text-ink)] shadow-sm'
-        }`}
-      >
-        <div className="text-[14px] leading-[1.7] tracking-[-0.01em] break-words">
-          {isUser ? (
-            <div className="whitespace-pre-wrap">{processedContent}</div>
-          ) : (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-1">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-1 text-[var(--text-dim)]">{children}</ol>,
-                li: ({ children }) => <li className="text-[var(--text-dim)]">{children}</li>,
-                strong: ({ children }) => <strong className="font-semibold text-[var(--text-ink)]">{children}</strong>,
-                h1: ({ children }) => <h1 className="text-[18px] font-bold mt-6 mb-3 pb-2 border-b border-[var(--border-faint)]">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-[16px] font-bold mt-5 mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-[15px] font-bold mt-5 mb-2 text-[var(--text-ink)]">{children}</h3>,
-                table: ({ children }) => (
-                  <div className="overflow-x-auto mb-4 border border-[var(--border-default)] rounded-lg">
-                    <table className="min-w-full divide-y divide-[var(--border-default)]">{children}</table>
-                  </div>
-                ),
-                th: ({ children }) => <th className="px-4 py-2 bg-[var(--surface-elevated)] text-left text-[13px] font-semibold text-[var(--text-dim)]">{children}</th>,
-                td: ({ children }) => <td className="px-4 py-2 text-[13px] border-t border-[var(--border-faint)]">{children}</td>,
-                code: ({ children }) => (
-                  <code className="px-1.5 py-0.5 bg-[var(--surface-elevated)] border border-[var(--border-default)] rounded-[4px] font-mono text-[13px] text-[var(--accent-dark)]">
-                    {children}
-                  </code>
-                ),
-              }}
-            >
-              {processedContent}
-            </ReactMarkdown>
-          )}
-          {isStreaming && (
-            <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--accent-default)] animate-pulse align-middle" />
-          )}
+  // 유저 메시지 (제미나이 스타일: 우측 정렬, 넓은 패딩, 둥근 말풍선)
+  if (isUser) {
+    return (
+      <div className="flex w-full justify-end mb-8">
+        {/* 가로 너비 최대 85%로 제한 */}
+        <div className="max-w-[85%] md:max-w-[70%]">
+          <div className="px-6 py-4 bg-gray-100 rounded-[24px] rounded-tr-sm text-[15px] text-gray-800 leading-relaxed break-words whitespace-pre-wrap">
+            {processedContent}
+          </div>
         </div>
-        
-        <div
-          className={`text-[11px] mt-3 font-mono ${
-            isUser ? 'text-[var(--text-ghost)] text-right' : 'text-[var(--text-soft)]'
-          }`}
-        >
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </div>
+    );
+  }
+
+  // AI 메시지 (제미나이 스타일: 좌측 정렬, 말풍선 없이 아바타와 텍스트만)
+  return (
+    <div className="flex w-full justify-start mb-8 gap-4">
+      {/* AI 아바타 아이콘 */}
+      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+        <span className="text-white text-[16px] leading-none">✨</span>
+      </div>
+      
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="text-[15px] text-gray-800 leading-[1.8] tracking-[-0.01em] break-words">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-1.5">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-1.5">{children}</ol>,
+              li: ({ children }) => <li>{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              h1: ({ children }) => <h1 className="text-[20px] font-bold mt-8 mb-4">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-[18px] font-bold mt-6 mb-3">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-[16px] font-bold mt-5 mb-2">{children}</h3>,
+              table: ({ children }) => (
+                <div className="overflow-x-auto mb-6 border border-gray-200 rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200">{children}</table>
+                </div>
+              ),
+              th: ({ children }) => <th className="px-4 py-3 bg-gray-50 text-left text-[13px] font-semibold text-gray-600">{children}</th>,
+              td: ({ children }) => <td className="px-4 py-3 text-[14px] border-t border-gray-100">{children}</td>,
+              code: ({ children }) => (
+                <code className="px-1.5 py-0.5 bg-gray-100 rounded text-[13.5px] font-mono text-indigo-600">
+                  {children}
+                </code>
+              ),
+            }}
+          >
+            {processedContent}
+          </ReactMarkdown>
+          {isStreaming && (
+            <span className="inline-block w-2 h-4 ml-1 bg-indigo-600 animate-pulse align-middle" />
+          )}
         </div>
       </div>
     </div>
