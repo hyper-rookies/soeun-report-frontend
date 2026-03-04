@@ -42,7 +42,9 @@ export default function SharedPage() {
   }, [token]);
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--neutral-50)' }}>
+    /* 🍎 여기서 min-h-screen을 빼고 h-full overflow-y-auto를 넣었어! */
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--neutral-50)' }}>
+      
       {/* 상단 배너 */}
       <div
         style={{

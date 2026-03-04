@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useChatStore } from '@/store';
 import { apiClient, conversationService } from '@/services';
 import { API_ENDPOINTS } from '@/utils/constants';
@@ -20,22 +20,23 @@ export default function ChatPage() {
   const setSidebarOpen    = useChatStore((s) => s.setSidebarOpen);
   const resetChat         = useChatStore((s) => s.resetChat);
 
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
+
   useEffect(() => {
     if (!conversationId) return;
 
-    // 'new' 모드: 빈 화면만, API 호출 없음
     if (conversationId === 'new') {
       setConversationId('new');
       clearMessages();
       return;
     }
 
-    // /chat/new에서 막 전환된 경우: store에 이미 해당 ID의 메시지가 있으면 스킵
     const snap = useChatStore.getState();
     const isJustCreated = snap.conversationId === conversationId && snap.messages.length > 0;
     if (isJustCreated) return;
 
-    // 일반 대화방 진입: 이전 메시지 초기화 후 히스토리 로드
     setConversationId(conversationId);
     clearMessages();
     setLoading(true);
@@ -69,35 +70,44 @@ export default function ChatPage() {
   const handleShare = async () => {
     try {
       const res = await apiClient.post(API_ENDPOINTS.SHARE.CREATE(conversationId));
-      const { shareUrl } = res.data.data ?? res.data;
-      await navigator.clipboard.writeText(shareUrl);
-      alert('공유 링크가 클립보드에 복사되었습니다!\n만료: 30일');
+      const { shareUrl: newShareUrl } = res.data.data ?? res.data;
+      setShareUrl(newShareUrl);
+      setShareModalOpen(true);
+      setIsCopied(false);
     } catch {
       alert('공유 링크 생성에 실패했습니다.');
     }
   };
 
+  const handleCopyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      alert('클립보드 복사에 실패했습니다.');
+    }
+  };
 
   if (!conversationId) return null;
 
   return (
-    // 1. 전체 높이를 꽉 채우고(h-full), 위에서부터 아래로 차곡차곡 쌓이게(flex-col) 설정
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--white)]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--white)] relative">
       
-      {/* 2. 액션바 (햄버거 & 새 채팅 버튼) */}
+      {/* 액션바 */}
       <div
         className="shrink-0 flex items-center justify-between"
         style={{
           background: 'var(--white)',
-          borderBottom: '1px solid var(--neutral-100)',
+          borderBottom: '1px solid var(--border-default)',
           boxShadow: 'var(--shadow-xs)',
           paddingInlineStart: '16px',
           paddingInlineEnd: '12px',
           height: '52px',
-          zIndex: 10, // 채팅 내용이 스크롤될 때 띠 위로 올라오지 않게 방어
+          zIndex: 10,
         }}
       >
-        {/* 햄버거 — icon button */}
         <button
           onClick={() => setSidebarOpen(true)}
           aria-label="대화 목록 열기"
@@ -111,12 +121,11 @@ export default function ChatPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {/* 공유 버튼 (new가 아닐 때만) */}
           {conversationId !== 'new' && (
             <button
               onClick={handleShare}
-              title="공유 링크 생성"
-              aria-label="공유 링크 생성"
+              title="공유 링크 만들기"
+              aria-label="공유 링크 만들기"
               className="cds-btn cds-btn--icon cds-btn--ghost"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,17 +135,16 @@ export default function ChatPage() {
             </button>
           )}
 
-          {/* 새로운 분석 (새 채팅) */}
           <button
             onClick={handleNewConversation}
             className="cds-btn cds-btn--md"
             style={{
               background: 'var(--white)',
-              color: 'var(--neutral-700)',
-              border: '1px solid var(--neutral-200)',
+              color: 'var(--text-ink)',
+              border: '1px solid var(--border-strong)',
               boxShadow: 'var(--shadow-xs)',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-50)')}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--surface-canvas)')}
             onMouseOut={(e) => (e.currentTarget.style.background = 'var(--white)')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,10 +155,101 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* 3. 채팅 컨테이너 영역: 남은 공간을 모두 차지하도록(flex-1) */}
+      {/* 채팅 컨테이너 */}
       <div className="flex-1 overflow-hidden relative">
         <ChatContainer conversationId={conversationId} />
       </div>
+
+      {/* 🍎 제미나이 스타일 공유 모달 */}
+      {shareModalOpen && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center px-4"
+          style={{ zIndex: 3000, background: 'rgba(0, 0, 0, 0.5)' }} 
+          onClick={() => setShareModalOpen(false)}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="w-full max-w-[460px] rounded-2xl flex flex-col gap-6"
+            style={{ 
+              background: 'var(--white)', 
+              boxShadow: 'var(--shadow-2xl)',
+              padding: '32px' 
+            }}
+          >
+            {/* 헤더 & 닫기 버튼 */}
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-[20px] font-bold tracking-tight mb-2" style={{ color: 'var(--text-ink)' }}>
+                  채팅 공유
+                </h3>
+                <p className="text-[14px] leading-relaxed" style={{ color: 'var(--text-dim)' }}>
+                  이 링크를 가진 모든 사람이 이 대화를 볼 수 있습니다.<br/>
+                  (링크는 30일간 유효합니다)
+                </p>
+              </div>
+              <button 
+                onClick={() => setShareModalOpen(false)}
+                className="p-2 rounded-full transition-colors"
+                style={{ color: 'var(--text-ghost)' }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-canvas)';
+                  e.currentTarget.style.color = 'var(--text-ink)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-ghost)';
+                }}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 🍎 링크 복사 영역 (크기와 여백 빵빵하게 키움!) */}
+            <div 
+              className="flex items-center justify-between rounded-xl p-4" /* px-4 py-3에서 p-4(16px)로 여백 증가 */
+              style={{ 
+                background: 'var(--surface-canvas)', 
+                border: '1px solid var(--border-default)' 
+              }}
+            >
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                className="flex-1 bg-transparent border-none outline-none text-[15px] mr-4" /* 폰트 사이즈 14px -> 15px로 키움 */
+                style={{ color: 'var(--text-ink)' }}
+                onClick={(e) => e.currentTarget.select()} 
+              />
+              
+              <button
+                onClick={handleCopyLink}
+                title="링크 복사"
+                className="shrink-0 p-3 rounded-lg transition-all flex items-center justify-center cursor-pointer" /* 버튼 안쪽 여백을 p-2.5 -> p-3으로 키움 */
+                style={{ 
+                  background: isCopied ? 'var(--primary-50)' : 'var(--white)', 
+                  border: '1px solid',
+                  borderColor: isCopied ? 'var(--primary-200)' : 'var(--border-strong)',
+                  color: isCopied ? 'var(--primary-500)' : 'var(--text-ink)' 
+                }}
+              >
+                {isCopied ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> {/* 아이콘 크기 w-4 -> w-5로 키움 */}
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> {/* 아이콘 크기 w-4 -> w-5로 키움 */}
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
