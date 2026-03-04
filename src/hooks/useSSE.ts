@@ -82,7 +82,7 @@ export const useSSE = (conversationId: string) => {
         await chatService.sendMessage(
           actualId,
           userMessage,
-          // onData: 청크 데이터 수신
+          // onData: 텍스트 청크 수신
           (chunk: string) => {
             store.appendToLastMessage(chunk);
           },
@@ -99,6 +99,10 @@ export const useSSE = (conversationId: string) => {
             const messages = store.messages.slice(0, -1);
             store.clearMessages();
             messages.forEach((msg) => store.addMessage(msg));
+          },
+          // onStructuredData: SSE "data" 이벤트 (차트/표)
+          (data: Record<string, unknown>[]) => {
+            store.setLastMessageData(data);
           }
         );
       } catch (error) {

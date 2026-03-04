@@ -40,6 +40,10 @@ export const API_ENDPOINTS = {
     CREATE: '/api/conversations',
     GET: (id: string) => `/api/conversations/${id}`,
   },
+  SHARE: {
+    CREATE: (conversationId: string) => `/api/share/${conversationId}`,
+    GET: (token: string) => `/api/share/${token}`,
+  },
 };
 
 /**

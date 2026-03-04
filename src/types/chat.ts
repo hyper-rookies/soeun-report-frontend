@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  data?: Record<string, unknown>[];  // 차트/표 구조 데이터 (SSE "data" 이벤트)
 }
 
 /**

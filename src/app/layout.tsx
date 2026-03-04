@@ -18,33 +18,31 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={inter.className}>
-        {/* 글로벌 헤더 — fixed 60px */}
+        {/* 글로벌 헤더 — fixed 80px */}
         <header className="cds-header">
-          <div className="flex items-center gap-3">
-            {/* 로고 마크 */}
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: 'var(--primary-500)' }}
-            >
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
+          <div className="flex items-center gap-4">
+            {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40) */}
+            <img
+              src="/apple_logo.png"
+              alt="로고"
+              style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
+            />
 
             <div>
-              <h1 className="text-[15px] font-bold leading-tight tracking-[-0.02em]"
+              {/* 타이틀 텍스트도 살짝 키움 */}
+              <h1 className="text-[17px] font-bold leading-tight tracking-[-0.02em]"
                   style={{ color: 'var(--neutral-700)' }}>
                 광고 AI 리포터
               </h1>
-              <p className="text-[11px] leading-tight" style={{ color: 'var(--neutral-400)' }}>
+              <p className="text-[12px] leading-tight mt-0.5" style={{ color: 'var(--neutral-400)' }}>
                 대시보드를 보지 말고, 대화하세요.
               </p>
             </div>
           </div>
         </header>
 
-        {/* 헤더 높이(60px)만큼 밀어내고 남은 뷰포트를 채움 */}
-        <div className="flex flex-col overflow-hidden" style={{ height: '100vh', paddingTop: '60px' }}>
+        {/* 헤더가 커졌으므로 paddingTop을 80px로 수정해서 뷰포트를 맞춤 */}
+        <div className="flex flex-col overflow-hidden" style={{ height: '100vh', paddingTop: '80px' }}>
           <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <Providers>{children}</Providers>
           </main>

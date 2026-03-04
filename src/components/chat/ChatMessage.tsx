@@ -4,6 +4,7 @@ import { FC } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
+import { DataRenderer } from './DataRenderer';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -21,12 +22,30 @@ function normalizeMarkdown(text: string): string {
     .replace(/ {2,}/g, ' ');                     // 연속 공백 정리
 }
 
+// AI가 SSE "data" 이벤트 대신 텍스트로 JSON/표를 직접 출력할 때 해당 줄 제거
+function cleanContent(content: string): string {
+  return content
+    .split('\n')
+    .filter((line) => {
+      const t = line.trim();
+      // JSON 배열 줄 제거
+      if (t.startsWith('[{') || t.startsWith('[{"')) return false;
+      // 마크다운 표 구분자 줄 제거 (|---|---|)
+      if (t.startsWith('|') && t.includes('---')) return false;
+      // 마크다운 표 데이터 행 제거 (모든 | 로 시작하는 줄)
+      if (t.startsWith('|') && t.endsWith('|')) return false;
+      return true;
+    })
+    .join('\n')
+    .trim();
+}
+
 export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false }) => {
   const isUser = message.role === 'user';
 
   const processedContent = isUser
     ? message.content.replace(/\\n/g, '\n').replace(/\\r/g, '')
-    : normalizeMarkdown(message.content);
+    : cleanContent(normalizeMarkdown(message.content));
 
   // 유저 메시지 — 우측 정렬, neutral-100 말풍선
   if (isUser) {
@@ -90,30 +109,41 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
                 <h3 className="text-[16px] font-bold mt-5 mb-2" style={{ color: 'var(--neutral-700)' }}>{children}</h3>
               ),
               table: ({ children }) => (
-                <div
-                  className="overflow-x-auto mb-6"
+                <table
                   style={{
-                    border: '1px solid var(--neutral-100)',
-                    borderRadius: '8px',
+                    borderCollapse: 'collapse',
+                    width: '100%',
+                    margin: '8px 0',
+                    fontSize: '13px',
                   }}
                 >
-                  <table className="min-w-full divide-y" style={{ borderColor: 'var(--neutral-100)' }}>
-                    {children}
-                  </table>
-                </div>
+                  {children}
+                </table>
               ),
               th: ({ children }) => (
                 <th
-                  className="px-4 py-3 text-left text-[13px] font-semibold"
-                  style={{ background: 'var(--neutral-50)', color: 'var(--neutral-500)' }}
+                  style={{
+                    padding: '6px 12px',
+                    background: 'var(--neutral-50)',
+                    borderBottom: '2px solid var(--neutral-200)',
+                    textAlign: 'left',
+                    color: 'var(--neutral-500)',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {children}
                 </th>
               ),
               td: ({ children }) => (
                 <td
-                  className="px-4 py-3 text-[14px]"
-                  style={{ borderTop: '1px solid var(--neutral-100)', color: 'var(--neutral-600)' }}
+                  style={{
+                    padding: '6px 12px',
+                    borderBottom: '1px solid var(--neutral-100)',
+                    color: 'var(--neutral-600)',
+                    fontSize: '13px',
+                  }}
                 >
                   {children}
                 </td>
@@ -140,6 +170,10 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
             />
           )}
         </div>
+
+        {message.data && message.data.length > 0 && (
+          <DataRenderer data={message.data} />
+        )}
       </div>
     </div>
   );

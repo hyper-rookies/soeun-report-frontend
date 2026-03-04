@@ -22,9 +22,13 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   }, [messages, isLoading]);
 
   const lastMsg = messages[messages.length - 1];
-  const showLoadingDots =
-    isLoading && lastMsg?.role === 'assistant' && lastMsg?.content === '';
-  const displayMessages = showLoadingDots ? messages.slice(0, -1) : messages;
+
+  const showLoadingDots = isLoading;
+
+  const displayMessages =
+    isLoading && lastMsg?.role === 'assistant' && lastMsg?.content === ''
+      ? messages.slice(0, -1)
+      : messages;
 
   if (messages.length === 0) {
     return (
@@ -32,18 +36,17 @@ export const ChatWindow: FC<ChatWindowProps> = ({
         className="flex flex-col items-center justify-center h-full px-4"
         style={{ background: 'var(--neutral-50)' }}
       >
-        {/* AI 아이콘 */}
-        <div
-          className="w-14 h-14 mb-5 rounded-2xl flex items-center justify-center"
+        {/* 🍎 AI 아이콘 대신 사과 로고 적용 */}
+        <img
+          src="/apple_logo.png"
+          alt="AI 사과 로고"
+          className="w-16 h-16 mb-5"
           style={{
-            background: 'var(--primary-500)',
+            borderRadius: '16px',
             boxShadow: 'var(--shadow-md)',
+            objectFit: 'cover'
           }}
-        >
-          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
+        />
 
         <p
           className="text-[18px] font-bold mb-2 tracking-[-0.02em]"
@@ -86,7 +89,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
       style={{
         overflowY: 'auto',
         background: 'var(--neutral-50)',
-        width: '100%',      // flex item cross-axis 명시적 고정
+        width: '100%',
         minWidth: 0,
       }}
     >
@@ -118,24 +121,23 @@ export const ChatWindow: FC<ChatWindowProps> = ({
         {/* 바운싱 점 — 첫 청크 도착 전 */}
         {showLoadingDots && (
           <div className="flex w-full justify-start mb-8 gap-4">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+            {/* 🍎 분석 중 아이콘도 사과 로고로 교체 */}
+            <img
+              src="/apple_logo.png"
+              alt="분석 중..."
+              className="w-8 h-8 rounded-full shrink-0 mt-0.5"
               style={{
-                background: 'var(--primary-500)',
                 boxShadow: 'var(--shadow-sm)',
+                objectFit: 'cover'
               }}
-            >
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+            />
             <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--neutral-400)' }}>
               <div className="flex gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '150ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '300ms' }} />
               </div>
-              <span>생각 중...</span>
+              <span>분석 중...</span>
             </div>
           </div>
         )}

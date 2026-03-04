@@ -19,7 +19,8 @@ export const chatService = {
     message: string,
     onData: (chunk: string) => void,
     onComplete: () => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    onStructuredData?: (data: Record<string, unknown>[]) => void
   ): Promise<void> => {
     try {
       const token = getAccessToken();
@@ -57,25 +58,42 @@ export const chatService = {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
+        let currentEventType = '';
         for (const line of lines) {
-          if (!line.startsWith('event:') && !line.startsWith('data:')) {
+          // 빈 줄 = SSE 이벤트 구분자 → event type 초기화
+          if (line === '') {
+            currentEventType = '';
             continue;
           }
 
           if (line.startsWith('event:')) {
-            const eventType = line.substring(6).trim();
-            if (eventType === 'done') {
+            currentEventType = line.substring(6).trim();
+            if (currentEventType === 'done') {
               onComplete();
               return;
-            } else if (eventType === 'error') {
+            } else if (currentEventType === 'error') {
               onError(ERROR_MESSAGES.SERVER_ERROR);
               return;
             }
+            continue;
           }
 
           if (line.startsWith('data:')) {
             const data = line.substring(5).trim();
-            if (data) {
+            if (!data) continue;
+
+            if (currentEventType === 'data') {
+              // SSE "data" 이벤트 → JSON 배열 파싱 후 onStructuredData 호출
+              try {
+                const parsed = JSON.parse(data);
+                if (Array.isArray(parsed)) {
+                  onStructuredData?.(parsed as Record<string, unknown>[]);
+                }
+              } catch {
+                // 파싱 실패 시 무시
+              }
+            } else {
+              // 기본 텍스트 청크
               onData(data);
             }
           }

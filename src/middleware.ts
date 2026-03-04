@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 인증 불필요한 경로 (명시적으로 전부 나열)
-  const publicPaths = ['/auth', '/auth/callback'];
+  const publicPaths = ['/auth', '/auth/callback', '/shared'];
   const isPublic = publicPaths.some((p) => pathname === p || pathname.startsWith(p));
 
   if (isPublic) {

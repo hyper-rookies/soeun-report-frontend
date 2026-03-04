@@ -25,6 +25,7 @@ export interface ChatState {
   setConversation: (conversation: Conversation) => void;
   addMessage: (message: ChatMessage) => void;
   appendToLastMessage: (text: string) => void;
+  setLastMessageData: (data: Record<string, unknown>[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setStreamingComplete: (complete: boolean) => void;
@@ -84,6 +85,17 @@ export const useChatStore = create<ChatState>()(
                 ...last,
                 content: last.content + text,
               };
+            }
+            return { messages };
+          }),
+
+        // 마지막 메시지에 구조 데이터 설정 (SSE "data" 이벤트용)
+        setLastMessageData: (data) =>
+          set((state) => {
+            const messages = [...state.messages];
+            if (messages.length > 0) {
+              const last = messages[messages.length - 1];
+              messages[messages.length - 1] = { ...last, data };
             }
             return { messages };
           }),

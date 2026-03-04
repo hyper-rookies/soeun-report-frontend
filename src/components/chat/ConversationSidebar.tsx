@@ -128,14 +128,14 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop (어두운 배경) */}
       <div
         aria-hidden
         onClick={onClose}
         style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 40,
+          zIndex: 2040, /* 👈 메인 헤더(1000)를 덮도록 zIndex를 확 올렸습니다. */
           background: 'rgba(0,0,0,0.25)',
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none',
@@ -143,7 +143,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
         }}
       />
 
-      {/* Sidebar panel */}
+      {/* Sidebar panel (실제 사이드바 내용) */}
       <aside
         aria-label="대화 목록"
         style={{
@@ -151,7 +151,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
           top: 0,
           left: 0,
           bottom: 0,
-          zIndex: 50,
+          zIndex: 2050, /* 👈 사이드바도 메인 헤더와 배경막 위로 올라오도록 2050으로 세팅했습니다! */
           width: '280px',
           display: 'flex',
           flexDirection: 'column',
@@ -185,7 +185,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               </svg>
             </div>
             <span className="text-[14px] font-bold tracking-[-0.02em]" style={{ color: 'var(--neutral-700)' }}>
-              AI 리포트
+              대화 히스토리
             </span>
           </div>
 

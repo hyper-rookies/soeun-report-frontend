@@ -121,13 +121,13 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 80px; /* 기존 60px에서 80px로 수정! */
   background: var(--white);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline-start: 16px;
-  padding-inline-end: 12px;
+  padding-inline-start: 24px; /* 여백도 조금 더 넉넉하게! */
+  padding-inline-end: 20px;
   z-index: 1000;
   box-shadow: var(--shadow-xs);
   color: var(--neutral-700);

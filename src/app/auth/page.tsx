@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 const COGNITO_DOMAIN =
   'https://ap-northeast-2bzej4aji8.auth.ap-northeast-2.amazoncognito.com';
 const CLIENT_ID = '4hlmd3bqam0pjm1kdgv8lt4ki2';
@@ -50,24 +52,13 @@ export default function AuthPage() {
             gap: '12px',
           }}
         >
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--primary-500)' }}
-          >
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-          </div>
+          <img
+            src="/apple-logo.png"
+            alt="AI 리포트 로고"
+            width={80}
+            height={80}
+            style={{ borderRadius: '16px' }}
+          />
           <div style={{ textAlign: 'center' }}>
             <h2
               className="text-[20px] font-bold tracking-[-0.02em]"
