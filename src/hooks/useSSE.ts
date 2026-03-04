@@ -37,17 +37,22 @@ export const useSSE = (conversationId: string) => {
 
   /**
    * 메시지 전송 및 SSE 스트리밍 시작
+   * @param userMessage 전송할 메시지
+   * @param targetId 실제 전송 대상 conversationId (생략 시 훅 초기화 값 사용)
+   *                 'new' 모드에서 대화를 먼저 생성한 후 실제 id를 전달할 때 사용
    */
   const sendMessage = useCallback(
-    async (userMessage: string) => {
+    async (userMessage: string, targetId?: string) => {
+      const actualId = targetId ?? conversationId;
+
       // 유효성 검사
       if (!userMessage.trim()) {
         store.setError('메시지를 입력해주세요.');
         return;
       }
 
-      if (!conversationId) {
-        store.setError('대화 세션이 없습니다.');
+      if (!actualId || actualId === 'new') {
+        store.setError('대화 세션이 없어요.');
         return;
       }
 
@@ -75,7 +80,7 @@ export const useSSE = (conversationId: string) => {
       try {
         // SSE 요청
         await chatService.sendMessage(
-          conversationId,
+          actualId,
           userMessage,
           // onData: 청크 데이터 수신
           (chunk: string) => {
@@ -98,12 +103,11 @@ export const useSSE = (conversationId: string) => {
         );
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : '예상치 못한 오류가 발생했습니다.';
+          error instanceof Error ? error.message : '예상치 못한 오류가 발생했어요.';
         store.setError(errorMessage);
         store.setLoading(false);
       }
     },
-    // sendMessage 내부에서는 store의 다양한 값을 써야 하므로 store 전체를 의존성에 둠
     [conversationId, store]
   );
 

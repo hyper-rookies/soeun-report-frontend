@@ -33,6 +33,16 @@ export interface Conversation {
 }
 
 /**
+ * 대화 요약 (목록 조회용)
+ */
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAt: number; // Unix timestamp (ms)
+  updatedAt: number; // Unix timestamp (ms)
+}
+
+/**
  * SSE 이벤트
  */
 export interface SSEEvent {

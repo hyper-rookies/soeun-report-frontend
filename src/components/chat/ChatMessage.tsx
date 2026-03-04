@@ -10,28 +10,38 @@ interface ChatMessageProps {
   isStreaming?: boolean;
 }
 
+// SSE 스트리밍 텍스트에서 헤딩/리스트 앞 줄바꿈이 누락될 수 있어 보정
+function normalizeMarkdown(text: string): string {
+  return text
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/(#{1,3})([^\s#\n])/g, '$1 $2')  // # 뒤 공백 누락 보정 (###제목 → ### 제목)
+    .replace(/([^\n])(#{1,3} )/g, '$1\n\n$2')  // ## 앞 줄바꿈 2개 보장
+    .replace(/([^\n])(- )/g, '$1\n$2')          // - 리스트 앞 줄바꿈 보장
+    .replace(/ {2,}/g, ' ');                     // 연속 공백 정리
+}
+
 export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false }) => {
   const isUser = message.role === 'user';
 
-  let processedContent = message.content
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '');
+  const processedContent = isUser
+    ? message.content.replace(/\\n/g, '\n').replace(/\\r/g, '')
+    : normalizeMarkdown(message.content);
 
-  if (!isUser) {
-    processedContent = processedContent
-      .replace(/(📊|⚠️|🔍|📝)/g, '\n\n$1 ')
-      .replace(/(###)\s*/g, '\n\n### ')
-      .replace(/(\d+\.)(?![\d])/g, '\n$1 ')
-      .replace(/(-\s*[가-힣a-zA-Z])/g, '\n$1 ');
-  }
-
-  // 유저 메시지 (제미나이 스타일: 우측 정렬, 넓은 패딩, 둥근 말풍선)
+  // 유저 메시지 — 우측 정렬, neutral-100 말풍선
   if (isUser) {
     return (
       <div className="flex w-full justify-end mb-8">
-        {/* 가로 너비 최대 85%로 제한 */}
         <div className="max-w-[85%] md:max-w-[70%]">
-          <div className="px-6 py-4 bg-gray-100 rounded-[24px] rounded-tr-sm text-[15px] text-gray-800 leading-relaxed break-words whitespace-pre-wrap">
+          <div
+            className="text-[15px] leading-relaxed break-words whitespace-pre-wrap"
+            style={{
+              padding: '14px 20px',
+              background: 'var(--neutral-100)',
+              color: 'var(--neutral-700)',
+              borderRadius: '20px 20px 4px 20px',
+            }}
+          >
             {processedContent}
           </div>
         </div>
@@ -39,16 +49,27 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
     );
   }
 
-  // AI 메시지 (제미나이 스타일: 좌측 정렬, 말풍선 없이 아바타와 텍스트만)
+  // AI 메시지 — 좌측, 레드 아바타
   return (
     <div className="flex w-full justify-start mb-8 gap-4">
-      {/* AI 아바타 아이콘 */}
-      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-        <span className="text-white text-[16px] leading-none">✨</span>
+      {/* AI 아바타 */}
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+        style={{
+          background: 'var(--primary-500)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
       </div>
-      
+
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="text-[15px] text-gray-800 leading-[1.8] tracking-[-0.01em] break-words">
+        <div
+          className="text-[15px] leading-[1.8] tracking-[-0.01em] break-words"
+          style={{ color: 'var(--neutral-700)' }}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -56,19 +77,55 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
               ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-1.5">{children}</ul>,
               ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-1.5">{children}</ol>,
               li: ({ children }) => <li>{children}</li>,
-              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-              h1: ({ children }) => <h1 className="text-[20px] font-bold mt-8 mb-4">{children}</h1>,
-              h2: ({ children }) => <h2 className="text-[18px] font-bold mt-6 mb-3">{children}</h2>,
-              h3: ({ children }) => <h3 className="text-[16px] font-bold mt-5 mb-2">{children}</h3>,
+              strong: ({ children }) => (
+                <strong className="font-semibold" style={{ color: 'var(--neutral-700)' }}>{children}</strong>
+              ),
+              h1: ({ children }) => (
+                <h1 className="text-[20px] font-bold mt-8 mb-4" style={{ color: 'var(--neutral-700)' }}>{children}</h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-[18px] font-bold mt-6 mb-3" style={{ color: 'var(--neutral-700)' }}>{children}</h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-[16px] font-bold mt-5 mb-2" style={{ color: 'var(--neutral-700)' }}>{children}</h3>
+              ),
               table: ({ children }) => (
-                <div className="overflow-x-auto mb-6 border border-gray-200 rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200">{children}</table>
+                <div
+                  className="overflow-x-auto mb-6"
+                  style={{
+                    border: '1px solid var(--neutral-100)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <table className="min-w-full divide-y" style={{ borderColor: 'var(--neutral-100)' }}>
+                    {children}
+                  </table>
                 </div>
               ),
-              th: ({ children }) => <th className="px-4 py-3 bg-gray-50 text-left text-[13px] font-semibold text-gray-600">{children}</th>,
-              td: ({ children }) => <td className="px-4 py-3 text-[14px] border-t border-gray-100">{children}</td>,
+              th: ({ children }) => (
+                <th
+                  className="px-4 py-3 text-left text-[13px] font-semibold"
+                  style={{ background: 'var(--neutral-50)', color: 'var(--neutral-500)' }}
+                >
+                  {children}
+                </th>
+              ),
+              td: ({ children }) => (
+                <td
+                  className="px-4 py-3 text-[14px]"
+                  style={{ borderTop: '1px solid var(--neutral-100)', color: 'var(--neutral-600)' }}
+                >
+                  {children}
+                </td>
+              ),
               code: ({ children }) => (
-                <code className="px-1.5 py-0.5 bg-gray-100 rounded text-[13.5px] font-mono text-indigo-600">
+                <code
+                  className="px-1.5 py-0.5 rounded text-[13.5px] font-mono"
+                  style={{
+                    background: 'var(--primary-50)',
+                    color: 'var(--primary-600)',
+                  }}
+                >
                   {children}
                 </code>
               ),
@@ -77,7 +134,10 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
             {processedContent}
           </ReactMarkdown>
           {isStreaming && (
-            <span className="inline-block w-2 h-4 ml-1 bg-indigo-600 animate-pulse align-middle" />
+            <span
+              className="inline-block w-2 h-4 ml-1 rounded-sm align-middle animate-pulse"
+              style={{ background: 'var(--primary-500)' }}
+            />
           )}
         </div>
       </div>

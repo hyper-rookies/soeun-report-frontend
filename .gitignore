@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code 설정 (로컬 전용)
+.claude/
+.claude-plugin/

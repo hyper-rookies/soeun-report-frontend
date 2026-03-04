@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useChatStore } from '@/store';
 import { conversationService } from '@/services';
-import { Conversation } from '@/types/chat';
+import { Conversation, ConversationSummary } from '@/types/chat';
 
 /**
  * 대화 생성, 로드, 관리 훅
@@ -12,23 +12,28 @@ export const useConversation = () => {
   /**
    * 새 대화 생성
    */
-  const createConversation = useCallback(async (): Promise<Conversation | null> => {
-    try {
-      store.setLoading(true);
-      store.setError(null);
+  const createConversation = useCallback(
+    async (title = '새 대화'): Promise<ConversationSummary | null> => {
+      try {
+        store.setLoading(true);
+        store.setError(null);
 
-      const conversation = await conversationService.createConversation();
-      store.setConversation(conversation);
+        const summary = await conversationService.createConversation(title);
+        console.log('[useConversation] createConversation result:', summary);
+        store.setConversationId(summary.id);
+        store.clearMessages();
+        store.addConversation(summary);
 
-      return conversation;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '대화 생성 실패';
-      store.setError(errorMessage);
-      return null;
-    } finally {
-      store.setLoading(false);
-    }
-  }, [store]);
+        return summary;
+      } catch (error) {
+        store.setError(error instanceof Error ? error.message : '대화 생성 실패');
+        return null;
+      } finally {
+        store.setLoading(false);
+      }
+    },
+    [store]
+  );
 
   /**
    * 기존 대화 로드
@@ -44,8 +49,7 @@ export const useConversation = () => {
 
         return conversation;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '대화 로드 실패';
-        store.setError(errorMessage);
+        store.setError(error instanceof Error ? error.message : '대화 로드 실패');
         return null;
       } finally {
         store.setLoading(false);
@@ -55,18 +59,18 @@ export const useConversation = () => {
   );
 
   /**
-   * 모든 대화 조회
+   * 대화 목록 조회 및 스토어 업데이트
    */
-  const listConversations = useCallback(async (): Promise<Conversation[]> => {
+  const listConversations = useCallback(async (): Promise<ConversationSummary[]> => {
     try {
       store.setLoading(true);
       store.setError(null);
 
       const conversations = await conversationService.listConversations();
+      store.setConversations(conversations);
       return conversations;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '대화 목록 조회 실패';
-      store.setError(errorMessage);
+      store.setError(error instanceof Error ? error.message : '대화 목록 조회 실패');
       return [];
     } finally {
       store.setLoading(false);
@@ -85,6 +89,7 @@ export const useConversation = () => {
     currentConversationId: store.conversationId,
     currentConversation: store.conversation,
     messages: store.messages,
+    conversations: store.conversations,
 
     // 액션
     createConversation,

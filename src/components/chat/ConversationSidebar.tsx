@@ -1,22 +1,15 @@
 'use client';
 
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { conversationService } from '@/services';
-import { Conversation } from '@/types/chat';
+import { useChatStore } from '@/store';
+import { ConversationSummary } from '@/types/chat';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getConversationTitle(conv: Conversation): string {
-  const firstUserMsg = conv.messages?.find((m) => m.role === 'user');
-  if (firstUserMsg?.content) {
-    const text = firstUserMsg.content.trim();
-    return text.length > 36 ? text.slice(0, 36) + '…' : text;
-  }
-  return '새 대화';
-}
-
 function getRelativeTime(timestamp: number): string {
+  if (!timestamp) return '';
   const diff = Date.now() - timestamp;
   const min = Math.floor(diff / 60_000);
   const hr = Math.floor(diff / 3_600_000);
@@ -28,10 +21,11 @@ function getRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
 
-type Group = { label: string; items: Conversation[] };
+type Group = { label: string; items: ConversationSummary[] };
 
-function groupConversations(convs: Conversation[]): Group[] {
-  const now = Date.now();
+function groupConversations(convs: ConversationSummary[]): Group[] {
+  if (!Array.isArray(convs)) return [];
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const today = todayStart.getTime();
@@ -39,7 +33,7 @@ function groupConversations(convs: Conversation[]): Group[] {
   const weekAgo = today - 7 * 86_400_000;
   const monthAgo = today - 30 * 86_400_000;
 
-  const buckets: Record<string, Conversation[]> = {
+  const buckets: Record<string, ConversationSummary[]> = {
     '오늘': [],
     '어제': [],
     '이번 주': [],
@@ -77,17 +71,31 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   onNewConversation,
 }) => {
   const router = useRouter();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const conversations    = useChatStore((s) => s.conversations);
+  const setConversations = useChatStore((s) => s.setConversations);
+  const removeConversation = useChatStore((s) => s.removeConversation);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fetchCountRef = useRef(0);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    const fetchId = ++fetchCountRef.current;
     setLoading(true);
+
     conversationService
       .listConversations()
-      .then(setConversations)
-      .catch(() => setConversations([]))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (fetchId === fetchCountRef.current) setConversations(data);
+      })
+      .catch(() => {
+        if (fetchId === fetchCountRef.current) setConversations([]);
+      })
+      .finally(() => {
+        if (fetchId === fetchCountRef.current) setLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleSelect = (id: string) => {
@@ -100,6 +108,22 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     onClose();
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setDeletingId(id);
+    try {
+      await conversationService.deleteConversation(id);
+      removeConversation(id);
+      if (id === currentConversationId) {
+        router.push('/');
+      }
+    } catch (e) {
+      console.error('[ConversationSidebar] 삭제 실패:', e);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const groups = groupConversations(conversations);
 
   return (
@@ -107,32 +131,68 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
       {/* Backdrop */}
       <div
         aria-hidden
-        className={[
-          'fixed inset-0 z-40 bg-black/20 transition-opacity duration-200',
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
-        ].join(' ')}
         onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 40,
+          background: 'rgba(0,0,0,0.25)',
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? 'auto' : 'none',
+          transition: 'opacity 0.2s ease-in-out',
+        }}
       />
 
       {/* Sidebar panel */}
       <aside
         aria-label="대화 목록"
-        className={[
-          'fixed top-0 left-0 bottom-0 z-50 w-72 flex flex-col',
-          'bg-[var(--surface-elevated)] border-r border-[var(--border-default)]',
-          'transition-transform duration-200 ease-in-out',
-          isOpen ? 'translate-x-0' : '-translate-x-full',
-        ].join(' ')}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          zIndex: 50,
+          width: '280px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--white)',
+          borderRight: '1px solid var(--neutral-100)',
+          boxShadow: isOpen ? 'var(--shadow-2xl)' : 'none',
+          transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.2s ease-in-out',
+        }}
       >
         {/* Sidebar header */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-[var(--border-faint)]">
-          <span className="text-[15px] font-bold text-[var(--text-ink)] tracking-[-0.02em]">
-            AI 리포트
-          </span>
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingInlineStart: '20px',
+            paddingInlineEnd: '12px',
+            height: '60px',
+            borderBottom: '1px solid var(--neutral-100)',
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+              style={{ background: 'var(--primary-500)' }}
+            >
+              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span className="text-[14px] font-bold tracking-[-0.02em]" style={{ color: 'var(--neutral-700)' }}>
+              AI 리포트
+            </span>
+          </div>
+
           <button
             onClick={onClose}
             aria-label="닫기"
-            className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-soft)] hover:text-[var(--text-ink)] hover:bg-[var(--surface-well)] transition-colors"
+            className="cds-btn cds-btn--icon cds-btn--ghost"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -140,63 +200,125 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
           </button>
         </div>
 
-        {/* New conversation button */}
-        <div className="shrink-0 px-4 py-3">
+        {/* 새 대화 버튼 — button-lg 스펙 */}
+        <div style={{ flexShrink: 0, padding: '16px 16px 8px' }}>
           <button
             onClick={handleNew}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-[13px] font-medium text-[var(--text-ink)] border border-[var(--border-default)] hover:bg-[var(--surface-well)] transition-colors"
+            className="cds-btn cds-btn--lg w-full"
+            style={{
+              background: 'var(--primary-500)',
+              color: 'var(--white)',
+              width: '100%',
+              justifyContent: 'center',
+              borderRadius: '8px',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--primary-450)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--primary-500)')}
           >
-            <svg className="w-4 h-4 text-[var(--text-soft)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
             </svg>
-            새로운 분석
+            새 채팅
           </button>
         </div>
 
-        {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-6">
+        {/* 대화 목록 */}
+        <div className="cds-header__gnb flex-1 px-2 pb-6">
           {loading ? (
-            <div className="flex flex-col gap-2 px-2 pt-2">
-              {[100, 80, 90].map((w) => (
-                <div key={w} className="py-2.5 px-3">
+            <div className="flex flex-col gap-1 px-2 pt-2">
+              {[100, 75, 90].map((w) => (
+                <div key={w} style={{ padding: '12px 18px' }}>
                   <div
-                    className="h-3 rounded-sm bg-[var(--border-default)] animate-pulse mb-1.5"
-                    style={{ width: `${w}%` }}
+                    className="h-3 rounded animate-pulse mb-1.5"
+                    style={{ width: `${w}%`, background: 'var(--neutral-100)' }}
                   />
-                  <div className="h-2 rounded-sm bg-[var(--border-faint)] animate-pulse w-16" />
+                  <div className="h-2 rounded animate-pulse w-16" style={{ background: 'var(--neutral-100)' }} />
                 </div>
               ))}
             </div>
           ) : groups.length === 0 ? (
-            <p className="px-4 pt-6 text-[13px] text-[var(--text-ghost)] text-center">
-              대화 기록이 없습니다
+            <p className="text-[13px] text-center pt-8" style={{ color: 'var(--neutral-300)' }}>
+              새로운 채팅을 시작해보세요.
             </p>
           ) : (
             groups.map(({ label, items }) => (
-              <div key={label} className="mb-2 mt-1">
-                <p className="px-3 py-1.5 text-[10px] font-semibold text-[var(--text-ghost)] tracking-[0.06em] uppercase">
+              <div key={label} className="mb-1 mt-1">
+                <p
+                  className="text-[10px] font-semibold tracking-[0.06em] uppercase"
+                  style={{
+                    color: 'var(--neutral-300)',
+                    padding: '8px 18px 4px',
+                  }}
+                >
                   {label}
                 </p>
                 {items.map((conv) => {
                   const active = conv.id === currentConversationId;
+                  const isDeleting = deletingId === conv.id;
                   return (
-                    <button
+                    <div
                       key={conv.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleSelect(conv.id)}
-                      className={[
-                        'w-full text-left px-3 py-2.5 rounded-md mb-px transition-colors',
-                        active
-                          ? 'bg-[var(--surface-ai)] text-[var(--text-ink)]'
-                          : 'text-[var(--text-dim)] hover:bg-[var(--surface-well)] hover:text-[var(--text-ink)]',
-                      ].join(' ')}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSelect(conv.id)}
+                      className="group flex items-start gap-1 cursor-pointer rounded-lg mb-px"
+                      style={{
+                        padding: '12px 18px',
+                        background: active ? 'var(--primary-50)' : 'transparent',
+                        color: active ? 'var(--primary-700)' : 'var(--neutral-500)',
+                        borderLeft: active ? `2px solid var(--primary-500)` : '2px solid transparent',
+                        transition: 'background-color 0.1s, color 0.1s',
+                      }}
+                      onMouseOver={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = 'var(--neutral-50)';
+                          e.currentTarget.style.color = 'var(--neutral-700)';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--neutral-500)';
+                        }
+                      }}
                     >
-                      <p className="text-[13px] font-medium leading-snug truncate">
-                        {getConversationTitle(conv)}
-                      </p>
-                      <p className="text-[11px] text-[var(--text-ghost)] mt-0.5">
-                        {getRelativeTime(conv.updatedAt)}
-                      </p>
-                    </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium leading-snug truncate">
+                          {conv.title || '새 대화'}
+                        </p>
+                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--neutral-300)' }}>
+                          {getRelativeTime(conv.updatedAt)}
+                        </p>
+                      </div>
+
+                      {/* 삭제 버튼 */}
+                      <button
+                        onClick={(e) => handleDelete(e, conv.id)}
+                        aria-label="대화 삭제"
+                        disabled={isDeleting}
+                        className="shrink-0 w-5 h-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 mt-0.5 transition-opacity"
+                        style={{
+                          color: 'var(--neutral-300)',
+                          cursor: isDeleting ? 'not-allowed' : 'pointer',
+                          border: 'none',
+                          background: 'transparent',
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.color = 'var(--primary-500)';
+                          e.currentTarget.style.background = 'var(--primary-100)';
+                          e.currentTarget.style.borderRadius = '4px';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.color = 'var(--neutral-300)';
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
