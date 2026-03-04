@@ -1,4 +1,5 @@
 import { API_CONFIG, API_ENDPOINTS, ERROR_MESSAGES } from '@/utils/constants';
+import { getAccessToken } from '@/lib/auth';
 
 /**
  * Chat 서비스 - SSE 스트리밍
@@ -21,7 +22,7 @@ export const chatService = {
     onError: (error: string) => void
   ): Promise<void> => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
 
       // SSE fetch 요청
       const response = await fetch(

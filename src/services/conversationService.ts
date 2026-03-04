@@ -1,4 +1,4 @@
-import apiClient from './api';
+import apiClient from '@/lib/axiosInstance';
 import { Conversation, ConversationSummary } from '@/types';
 import { API_ENDPOINTS } from '@/utils/constants';
 

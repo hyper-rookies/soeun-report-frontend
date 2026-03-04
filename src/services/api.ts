@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from '@/utils/constants';
 import { ApiError } from '@/types';
+import { getAccessToken, clearAccessToken } from '@/lib/auth';
 
 /**
  * Axios 인스턴스 생성
@@ -19,7 +20,7 @@ export const apiClient: AxiosInstance = axios.create({
  */
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,10 +38,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && window.location.pathname !== '/auth') {
       // 토큰 만료 → 재로그인 필요
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      clearAccessToken();
+      window.location.href = '/auth';
     }
     return Promise.reject(error);
   }

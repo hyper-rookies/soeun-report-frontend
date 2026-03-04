@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import Providers from '@/components/Providers';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -45,7 +46,7 @@ export default function RootLayout({
         {/* 헤더 높이(60px)만큼 밀어내고 남은 뷰포트를 채움 */}
         <div className="flex flex-col overflow-hidden" style={{ height: '100vh', paddingTop: '60px' }}>
           <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {children}
+            <Providers>{children}</Providers>
           </main>
         </div>
       </body>
