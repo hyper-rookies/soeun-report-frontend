@@ -42,9 +42,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
           alt="AI 사과 로고"
           className="w-16 h-16 mb-5"
           style={{
-            borderRadius: '16px',
-            boxShadow: 'var(--shadow-md)',
-            objectFit: 'cover'
+            objectFit: 'contain',
           }}
         />
 

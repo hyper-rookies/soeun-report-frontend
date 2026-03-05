@@ -7,17 +7,26 @@ interface ChatInputProps {
   onSend: (message: string) => void | Promise<void>;
   isLoading?: boolean;
   disabled?: boolean;
+  presetValue?: string;
 }
 
 export const ChatInput: FC<ChatInputProps> = ({
   onSend,
   isLoading = false,
   disabled = false,
+  presetValue,
 }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // presetValue: 홈 화면 추천 질문 클릭 시 input에 텍스트 채우기
+  useEffect(() => {
+    if (!presetValue) return;
+    setInput(presetValue);
+    textareaRef.current?.focus();
+  }, [presetValue]);
 
   useEffect(() => {
     if (textareaRef.current) {

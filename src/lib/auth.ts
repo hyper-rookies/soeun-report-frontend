@@ -15,3 +15,24 @@ export const clearAccessToken = (): void => {
 };
 
 export const isLoggedIn = (): boolean => !!getAccessToken();
+
+export const getUserNameFromToken = (): string => {
+  const token = getAccessToken();
+  if (!token) return '사용자';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const raw =
+      payload.name ||
+      payload['cognito:username'] ||
+      payload.email?.split('@')[0] ||
+      '사용자';
+    // Cognito가 URL 인코딩된 이름을 반환하는 경우 디코딩
+    try {
+      return decodeURIComponent(escape(raw));
+    } catch {
+      return raw;
+    }
+  } catch {
+    return '사용자';
+  }
+};

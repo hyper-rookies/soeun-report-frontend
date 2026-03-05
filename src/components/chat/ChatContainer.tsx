@@ -1,6 +1,6 @@
 'use client';
 
-import { FC } from 'react';
+import { FC, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSSE } from '@/hooks/useSSE';
 import { useChatStore } from '@/store';
@@ -10,9 +10,10 @@ import ChatInput from './ChatInput';
 
 interface ChatContainerProps {
   conversationId: string; // 'new' | 실제 UUID
+  presetValue?: string;
 }
 
-export const ChatContainer: FC<ChatContainerProps> = ({ conversationId }) => {
+export const ChatContainer: FC<ChatContainerProps> = ({ conversationId, presetValue }) => {
   const router = useRouter();
   const { messages, isLoading, error, isStreamingComplete } = useChatStore();
   const setConversationId = useChatStore((s) => s.setConversationId);
@@ -37,6 +38,15 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId }) => {
 
     await sendMessage(message, targetId);
   };
+
+  // presetValue: 홈 화면 추천 질문 클릭 시 ?preset= 파라미터 → URL만 정리 (전송은 사용자가 직접)
+  const hasCleanedUrlRef = useRef(false);
+  useEffect(() => {
+    if (!presetValue || conversationId === 'new' || hasCleanedUrlRef.current) return;
+    hasCleanedUrlRef.current = true;
+    router.replace(`/chat/${conversationId}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, presetValue]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--neutral-50)' }}>
@@ -65,6 +75,7 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId }) => {
         onSend={handleSendMessage}
         isLoading={isLoading}
         disabled={false}
+        presetValue={presetValue}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useChatStore } from '@/store';
 import { apiClient, conversationService } from '@/services';
@@ -10,7 +10,9 @@ import { ChatContainer } from '@/components/chat/ChatContainer';
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const conversationId = params.conversationId as string;
+  const presetValue = searchParams.get('preset') ?? undefined;
 
   const setConversationId = useChatStore((s) => s.setConversationId);
   const clearMessages     = useChatStore((s) => s.clearMessages);
@@ -157,7 +159,7 @@ export default function ChatPage() {
 
       {/* 채팅 컨테이너 */}
       <div className="flex-1 overflow-hidden relative">
-        <ChatContainer conversationId={conversationId} />
+        <ChatContainer conversationId={conversationId} presetValue={presetValue} />
       </div>
 
       {/* 🍎 제미나이 스타일 공유 모달 */}
