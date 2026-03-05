@@ -2,9 +2,9 @@
  * API 기본 설정
  */
 export const API_CONFIG = {
-  // Dev: reads from .env.local → 'http://localhost:8080'
-  // Prod: NEXT_PUBLIC_API_BASE_URL unset → '' → relative paths → Vercel rewrite
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
+  // 항상 상대경로 사용 → /api/* 호출이 Next.js rewrites(Vercel 프록시)를 탐
+  // 로컬 개발 시에는 next.config.ts의 BACKEND_URL rewrites가 EC2로 포워딩
+  BASE_URL: '',
   TIMEOUT: 30000, // 30초
   RETRY_COUNT: 3,
 };

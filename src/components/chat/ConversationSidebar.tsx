@@ -158,6 +158,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const [genProgress,   setGenProgress]   = useState(0);
   const [genPhase,      setGenPhase]      = useState('');
   const [genError,      setGenError]      = useState('');
+  const [genErrorType,  setGenErrorType]  = useState<'network' | 'timeout' | 'general'>('general');
   const [genSuccessMsg, setGenSuccessMsg] = useState(false);
   const genStartRef   = useRef(0);
   const genTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -180,7 +181,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     setLoading(true);
     Promise.all([
       conversationService.listConversations().catch(() => [] as ConversationSummary[]),
-      fetchReports().catch(() => [] as ConversationSummary[]),
+      fetchReports().catch(() => [] as Record<string, unknown>[]),
     ]).then(([convData, reportData]) => {
       if (fetchId !== fetchCountRef.current) return;
       setConversations(convData);
@@ -287,17 +288,30 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     setGenSuccessMsg(false);
 
     try {
-      const token = getAccessToken();
-      const res   = await fetch('/api/report/generate', {
+      const token      = getAccessToken();
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 300_000); // 5분
+
+      const res = await fetch('/api/report/generate', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
       });
-      const json = await res.json() as { shareToken?: string; error?: string };
+      clearTimeout(timeoutId);
+      const data = await res.json() as {
+        success?: boolean;
+        data?: { shareToken?: string };
+        error?: string;
+        message?: string;
+      };
+      console.log('[생성 응답 전체]', data);
+      console.log('[success]', data.success);
+      console.log('[shareToken]', data.data?.shareToken);
 
-      if (!res.ok || !json.shareToken) {
+      if (!res.ok || data.success === false) {
         setGenStatus('error');
-        setGenError(json.error ?? '생성에 실패했습니다. 다시 시도해주세요.');
-        setTimeout(() => setGenStatus('idle'), 4000);
+        setGenErrorType('general');
+        setGenError(data.message ?? data.error ?? '생성에 실패했습니다. 다시 시도해주세요.');
         return;
       }
 
@@ -330,13 +344,33 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     } catch (err) {
       console.error('[Sidebar] 리포트 생성 실패:', err);
       setGenStatus('error');
-      setGenError('생성에 실패했습니다. 다시 시도해주세요.');
-      setTimeout(() => setGenStatus('idle'), 4000);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setGenErrorType('timeout');
+        setGenError('리포트 생성에 시간이 걸리고 있습니다. 잠시 후 목록을 확인해주세요.');
+        // 타임아웃은 백엔드에서 실제로 생성 중일 수 있으므로 자동으로만 닫기
+        setTimeout(() => setGenStatus('idle'), 6000);
+      } else if (err instanceof TypeError) {
+        setGenErrorType('network');
+        setGenError('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
+        setTimeout(() => setGenStatus('idle'), 5000);
+      } else {
+        setGenErrorType('general');
+        setGenError('리포트 생성에 실패했습니다. 다시 시도해주세요.');
+      }
     }
   };
 
   const groups = groupConversations(filteredChats);
   const isGenerating = genStatus === 'running';
+
+  // ── today report check ────────────────────────────────────────────────────
+  const todayStr     = new Date().toISOString().slice(0, 10); // "2026-03-05"
+  const todayCompact = todayStr.replace(/-/g, '');            // "20260305"
+  const hasTodayReport = reports.some(
+    (r) =>
+      r.conversationId === `report_${todayCompact}` ||
+      (r.createdAt && String(r.createdAt).startsWith(todayStr)),
+  );
 
   return (
     <>
@@ -494,55 +528,45 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
           {reportOpen && (
             <div style={{ marginLeft: '8px', paddingBottom: '4px' }}>
 
-              {/* 리포트 생성 버튼 */}
-              <button
-                onClick={handleGenerateReport}
-                disabled={isGenerating}
-                className="w-full flex items-center justify-center gap-1.5 text-[12px] font-medium rounded-lg"
-                style={{
-                  padding: '7px 10px',
-                  margin: '2px 0 6px',
-                  background: isGenerating ? 'var(--neutral-50)' : 'var(--primary-50)',
-                  color: isGenerating ? 'var(--neutral-400)' : 'var(--primary-600)',
-                  border: `1px solid ${isGenerating ? 'var(--neutral-200)' : 'var(--primary-200)'}`,
-                  cursor: isGenerating ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {isGenerating ? (
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : (
+              {/* 안내 문구 */}
+              <p className="text-[10px] px-1 pt-0.5 pb-2" style={{ color: 'var(--neutral-400)' }}>
+                매주 월요일 오전 8시에 자동 생성됩니다.
+              </p>
+
+              {/* 빈 목록일 때만 생성 버튼 */}
+              {!loading && reports.length === 0 && !isGenerating && (
+                <button
+                  onClick={handleGenerateReport}
+                  className="w-full flex items-center justify-center gap-1.5 text-[12px] font-medium rounded-lg"
+                  style={{
+                    padding: '7px 10px',
+                    margin: '0 0 6px',
+                    background: 'var(--primary-50)',
+                    color: 'var(--primary-600)',
+                    border: '1px solid var(--primary-200)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                )}
-                {isGenerating ? '생성 중...' : '리포트 생성'}
-              </button>
+                  지금 생성하기
+                </button>
+              )}
 
               {/* ── 진행 상태 표시 (생성 중) ── */}
               {isGenerating && (
-                <div
-                  style={{
-                    margin: '0 0 8px',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    background: 'var(--neutral-50)',
-                    border: '1px solid var(--neutral-100)',
-                  }}
-                >
+                <div style={{
+                  margin: '0 0 8px', padding: '10px 12px', borderRadius: '8px',
+                  background: 'var(--neutral-50)', border: '1px solid var(--neutral-100)',
+                }}>
                   <p className="text-[12px] font-medium mb-2" style={{ color: 'var(--neutral-600)' }}>
                     {genPhase}
                   </p>
-                  <div style={{
-                    height: '4px', borderRadius: '4px',
-                    background: 'var(--neutral-200)', overflow: 'hidden',
-                  }}>
+                  <div style={{ height: '4px', borderRadius: '4px', background: 'var(--neutral-200)', overflow: 'hidden' }}>
                     <div style={{
-                      height: '100%', borderRadius: '4px',
-                      background: 'var(--primary-500)',
+                      height: '100%', borderRadius: '4px', background: 'var(--primary-500)',
                       width: `${genProgress}%`,
                       transition: genProgress === 100 ? 'width 0.4s ease-out' : 'width 0.3s linear',
                     }} />
@@ -553,35 +577,33 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                 </div>
               )}
 
-              {/* ── 완료 인라인 메시지 ── */}
+              {/* ── 완료 메시지 ── */}
               {genSuccessMsg && (
                 <p className="text-[12px] font-medium px-1 pb-2" style={{ color: 'var(--primary-600)' }}>
                   ✅ 리포트가 생성됐습니다. 아래 목록에서 확인하세요.
                 </p>
               )}
 
-              {/* 오류 메시지 */}
+              {/* ── 오류 메시지 ── */}
               {genStatus === 'error' && (
                 <div style={{
                   margin: '0 0 8px', padding: '10px 12px', borderRadius: '8px',
                   background: '#fff5f5', border: '1px solid #fed7d7',
                 }}>
-                  <p className="text-[12px] font-medium mb-2.5" style={{ color: '#9b2c2c' }}>
-                    리포트 생성에 실패했습니다.
+                  <p className="text-[12px] font-medium" style={{
+                    color: '#9b2c2c', marginBottom: genErrorType === 'general' ? '8px' : '0',
+                  }}>
+                    {genError}
                   </p>
-                  <button
-                    onClick={handleGenerateReport}
-                    className="text-[12px] font-medium rounded-md"
-                    style={{
-                      padding: '4px 12px',
-                      background: '#9b2c2c',
-                      color: 'white',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    다시 시도
-                  </button>
+                  {genErrorType === 'general' && (
+                    <button
+                      onClick={handleGenerateReport}
+                      className="text-[12px] font-medium rounded-md"
+                      style={{ padding: '4px 12px', background: '#9b2c2c', color: 'white', border: 'none', cursor: 'pointer' }}
+                    >
+                      다시 시도
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -606,6 +628,9 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                   const isLoadingShare = loadingShareId === itemId;
                   const isCopied      = copiedId === itemId;
                   const isNewItem     = newlyAddedId === itemId;
+                  const isTodayItem   =
+                    itemId === `report_${todayCompact}` ||
+                    (item.createdAt && String(item.createdAt).startsWith(todayStr));
 
                   const handleView = () => {
                     if (shareToken) window.open(`/shared/${shareToken}`, '_blank');
@@ -629,10 +654,11 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                   return (
                     <div
                       key={itemId || String(item.createdAt)}
-                      className="flex items-center gap-1 rounded-lg group"
+                      className="group relative flex items-center gap-1 rounded-lg"
                       style={{
                         padding: '5px 4px',
-                        background: isNewItem ? 'var(--primary-50)' : 'transparent',
+                        background: (isNewItem || isTodayItem) ? 'var(--primary-50)' : 'transparent',
+                        border: (isTodayItem && !isNewItem) ? '1px solid var(--primary-100)' : '1px solid transparent',
                         transition: 'background 0.4s',
                       }}
                     >
@@ -648,12 +674,14 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                         }}
                       >
                         <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                          style={{ color: isNewItem ? 'var(--primary-400)' : 'var(--neutral-300)' }}>
+                          style={{ color: (isNewItem || isTodayItem) ? 'var(--primary-400)' : 'var(--neutral-300)' }}>
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span className="text-[12px] truncate"
-                          style={{ color: isNewItem ? 'var(--primary-700)' : 'var(--neutral-600)', fontWeight: isNewItem ? 600 : 400 }}>
+                        <span className="text-[12px] truncate" style={{
+                          color: (isNewItem || isTodayItem) ? 'var(--primary-700)' : 'var(--neutral-600)',
+                          fontWeight: (isNewItem || isTodayItem) ? 600 : 400,
+                        }}>
                           {dateLabel}
                         </span>
                         <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -670,7 +698,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                         disabled={isLoadingShare || !shareToken}
                         aria-label="링크 복사"
                         title={isCopied ? '복사됨!' : '링크 복사'}
-                        className="shrink-0 flex items-center justify-center rounded"
+                        className="shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         style={{
                           width: '22px', height: '22px',
                           background: isCopied ? 'var(--primary-50)' : 'transparent',
@@ -692,6 +720,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                           </svg>
                         )}
                       </button>
+
                     </div>
                   );
                 })
