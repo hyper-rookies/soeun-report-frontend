@@ -149,7 +149,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
 
   // ── nav state ─────────────────────────────────────────────────────────────
   const [reportOpen,   setReportOpen]   = useState(true);
-  const [searchActive, setSearchActive] = useState(false);
   const [searchQuery,  setSearchQuery]  = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -191,12 +190,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  // ── search focus ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (searchActive) setTimeout(() => searchInputRef.current?.focus(), 50);
-    else setSearchQuery('');
-  }, [searchActive]);
 
   // ── progress timer ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -400,25 +393,51 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
           transition: 'transform 0.2s ease-in-out',
         }}
       >
-        {/* ── Header ── */}
+        {/* ── Header (Gemini 스타일 검색창 배치) ── */}
         <div style={{
           flexShrink: 0, display: 'flex', alignItems: 'center',
           justifyContent: 'space-between',
-          paddingInline: '20px 12px', height: '60px',
+          paddingInline: '16px 12px', height: '60px',
           borderBottom: '1px solid var(--neutral-100)',
+          gap: '8px'
         }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-              style={{ background: 'var(--primary-500)' }}>
-              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span className="text-[14px] font-bold tracking-[-0.02em]" style={{ color: 'var(--neutral-700)' }}>
-              SE Report
-            </span>
+          <div className="flex-1 flex items-center gap-2"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '999px',
+              background: 'var(--neutral-50)',
+              border: '1px solid var(--neutral-200)',
+            }}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              style={{ color: 'var(--neutral-400)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="대화 검색..."
+              style={{
+                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                fontSize: '13px', color: 'var(--neutral-700)',
+                width: '100%',
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{ color: 'var(--neutral-400)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
-          <button onClick={onClose} aria-label="닫기" className="cds-btn cds-btn--icon cds-btn--ghost">
+
+          <button onClick={onClose} aria-label="닫기" className="cds-btn cds-btn--icon cds-btn--ghost shrink-0">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -439,59 +458,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
             label="새 채팅"
             onClick={handleNew}
           />
-
-          {/* 검색 */}
-          <NavItem
-            icon={
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            }
-            label="검색"
-            active={searchActive}
-            onClick={() => setSearchActive((v) => !v)}
-          />
-
-          {/* 검색 입력창 */}
-          {searchActive && (
-            <div style={{ padding: '4px 4px 2px' }}>
-              <div className="flex items-center gap-2"
-                style={{
-                  padding: '6px 10px', borderRadius: '8px',
-                  background: 'var(--neutral-50)',
-                  border: '1px solid var(--neutral-200)',
-                }}>
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  style={{ color: 'var(--neutral-400)' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Escape' && setSearchActive(false)}
-                  placeholder="대화 검색..."
-                  style={{
-                    flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                    fontSize: '13px', color: 'var(--neutral-700)',
-                  }}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    style={{ color: 'var(--neutral-400)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* 주간 리포트 토글 행 */}
           <button
@@ -532,28 +498,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               <p className="text-[10px] px-1 pt-0.5 pb-2" style={{ color: 'var(--neutral-400)' }}>
                 매주 월요일 오전 8시에 자동 생성됩니다.
               </p>
-
-              {/* 빈 목록일 때만 생성 버튼 */}
-              {!loading && reports.length === 0 && !isGenerating && (
-                <button
-                  onClick={handleGenerateReport}
-                  className="w-full flex items-center justify-center gap-1.5 text-[12px] font-medium rounded-lg"
-                  style={{
-                    padding: '7px 10px',
-                    margin: '0 0 6px',
-                    background: 'var(--primary-50)',
-                    color: 'var(--primary-600)',
-                    border: '1px solid var(--primary-200)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  지금 생성하기
-                </button>
-              )}
 
               {/* ── 진행 상태 표시 (생성 중) ── */}
               {isGenerating && (
@@ -826,6 +770,51 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               </div>
             ))
           )}
+        </div>
+
+        {/* ── 하단 프로필 & 설정 ── */}
+        <div style={{
+          flexShrink: 0,
+          padding: '12px',
+          borderTop: '1px solid var(--neutral-100)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px'
+        }}>
+          {/* 설정 버튼 */}
+          <NavItem
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+            label="설정"
+            onClick={() => {}}
+          />
+
+          {/* 프로필 버튼 */}
+          <button
+            className="w-full flex items-center gap-2.5 rounded-lg text-[13px] font-medium mt-1"
+            style={{
+              padding: '8px 12px',
+              background: 'transparent',
+              color: 'var(--neutral-700)',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.1s',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-100)')}
+            onMouseOut={(e)  => (e.currentTarget.style.background = 'transparent')}
+          >
+            <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--primary-100)', color: 'var(--primary-700)' }}>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <span className="flex-1 truncate">내 프로필</span>
+          </button>
         </div>
       </aside>
     </>

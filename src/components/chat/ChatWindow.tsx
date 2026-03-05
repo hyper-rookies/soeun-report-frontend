@@ -1,6 +1,7 @@
 'use client';
 
 import { FC, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 
@@ -8,12 +9,14 @@ interface ChatWindowProps {
   messages: ChatMessageType[];
   isLoading: boolean;
   isStreamingComplete: boolean;
+  isNewChat?: boolean; // 추가된 속성
 }
 
 export const ChatWindow: FC<ChatWindowProps> = ({
   messages,
   isLoading,
   isStreamingComplete,
+  isNewChat = false,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -31,16 +34,25 @@ export const ChatWindow: FC<ChatWindowProps> = ({
       : messages;
 
   if (messages.length === 0) {
+    // /chat/new 경로일 경우 겹치는 환영 화면 대신 빈 화면 렌더링
+    if (isNewChat) {
+      return <div className="flex-1" style={{ background: 'var(--neutral-50)' }} />;
+    }
+
     return (
       <div
         className="flex flex-col items-center justify-center h-full px-4"
         style={{ background: 'var(--neutral-50)' }}
       >
-        {/* 🍎 AI 아이콘 대신 사과 로고 적용 */}
-        <img
+        {/* 🍎 AI 아이콘 대신 사과 로고 적용 (Next Image 컴포넌트로 렌더링 보장) */}
+        <Image
           src="/apple_logo.png"
           alt="AI 사과 로고"
-          className="w-16 h-16 mb-5"
+          width={64}
+          height={64}
+          priority
+          unoptimized
+          className="mb-5"
           style={{
             objectFit: 'contain',
           }}
@@ -118,12 +130,16 @@ export const ChatWindow: FC<ChatWindowProps> = ({
 
         {/* 바운싱 점 — 첫 청크 도착 전 */}
         {showLoadingDots && (
-          <div className="flex w-full justify-start mb-8 gap-4">
-            {/* 🍎 분석 중 아이콘도 사과 로고로 교체 */}
-            <img
+          <div className="flex w-full justify-start mb-12 gap-4">
+            {/* 🍎 분석 중 아이콘도 사과 로고로 교체 (Next Image 컴포넌트 사용) */}
+            <Image
               src="/apple_logo.png"
               alt="분석 중..."
-              className="w-8 h-8 rounded-full shrink-0 mt-0.5"
+              width={32}
+              height={32}
+              priority
+              unoptimized
+              className="rounded-full shrink-0 mt-0.5"
               style={{
                 boxShadow: 'var(--shadow-sm)',
                 objectFit: 'cover'

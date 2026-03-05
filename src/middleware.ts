@@ -22,5 +22,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api).*)'],
+  // png, svg, jpg 등 정적 이미지 파일 확장자를 미들웨어 검사(토큰 검사)에서 제외하도록 추가
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 };

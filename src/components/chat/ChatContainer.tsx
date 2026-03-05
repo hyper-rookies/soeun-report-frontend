@@ -68,6 +68,7 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId, presetVa
         messages={messages}
         isLoading={isLoading}
         isStreamingComplete={isStreamingComplete}
+        isNewChat={conversationId === 'new'} // isNewChat 전달
       />
 
       {/* 입력 폼 */}

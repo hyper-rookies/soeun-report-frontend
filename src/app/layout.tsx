@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Image from 'next/image';
 import './globals.css';
 import Providers from '@/components/Providers';
 
@@ -21,11 +22,15 @@ export default function RootLayout({
         {/* 글로벌 헤더 — fixed 80px */}
         <header className="cds-header">
           <div className="flex items-center gap-4">
-            {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40) */}
-            <img
+            {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40), Next Image 컴포넌트로 변경 */}
+            <Image
               src="/apple_logo.png"
               alt="로고"
-              style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
+              width={40}
+              height={40}
+              priority
+              unoptimized
+              style={{ borderRadius: '8px', objectFit: 'cover' }}
             />
 
             <div>

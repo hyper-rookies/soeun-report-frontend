@@ -53,7 +53,7 @@ export default function AuthPage() {
           }}
         >
           <img
-            src="/apple-logo.png"
+            src="/apple_logo.png"
             alt="AI 리포트 로고"
             width={80}
             height={80}

@@ -49,10 +49,10 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
     ? message.content.replace(/\\n/g, '\n').replace(/\\r/g, '')
     : cleanContent(normalizeMarkdown(message.content));
 
-  // 유저 메시지 — 우측 정렬, neutral-100 말풍선
+  // 유저 메시지 — 우측 정렬, 간격 mb-12로 수정
   if (isUser) {
     return (
-      <div className="flex w-full justify-end mb-8">
+      <div className="flex w-full justify-end mb-12">
         <div className="max-w-[85%] md:max-w-[70%]">
           <div
             className="text-[15px] leading-relaxed break-words whitespace-pre-wrap"
@@ -70,9 +70,9 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
     );
   }
 
-  // AI 메시지 — 좌측, 레드 아바타
+  // AI 메시지 — 좌측, 간격 mb-12로 수정
   return (
-    <div className="flex w-full justify-start mb-8 gap-4">
+    <div className="flex w-full justify-start mb-12 gap-4">
       {/* AI 아바타 */}
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
