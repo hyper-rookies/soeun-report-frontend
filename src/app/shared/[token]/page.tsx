@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ChatMessage } from '@/components/chat/ChatMessage';
+import { ReportView } from '@/components/report/ReportView';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
 import { API_CONFIG, API_ENDPOINTS } from '@/utils/constants';
 
@@ -16,11 +17,22 @@ interface SharedMessage {
 interface SharedConversationRaw {
   messages: SharedMessage[];
   expiresAt?: string;
+  createdAt?: string;
+  userId?: string;
+  title?: string;
+  conversation?: {
+    userId?: string;
+    title?: string;
+    createdAt?: string;
+  };
 }
 
 interface SharedConversation {
   messages: ChatMessageType[];
   expiresAt?: string;
+  createdAt?: string;
+  title: string;
+  isSystemReport: boolean;
 }
 
 function formatExpiry(iso: string): string {
@@ -55,16 +67,35 @@ export default function SharedPage() {
           timestamp: msg.timestamp ?? 0,
           ...(msg.structuredData?.length ? { data: msg.structuredData } : {}),
         }));
-        setData({ messages, expiresAt: raw.expiresAt });
+
+        const userId = raw.conversation?.userId ?? raw.userId ?? '';
+        const title = raw.conversation?.title ?? raw.title ?? '';
+        const createdAt = raw.conversation?.createdAt ?? raw.createdAt;
+        const isSystemReport =
+          userId === 'system' || title.startsWith('주간 자동 리포트');
+
+        setData({ messages, expiresAt: raw.expiresAt, createdAt, title, isSystemReport });
       })
       .catch(() => setError('공유 링크가 만료되었거나 존재하지 않습니다.'))
       .finally(() => setLoading(false));
   }, [token]);
 
+  // 리포트 모드: 자체 레이아웃 전체 교체
+  if (!loading && !error && data?.isSystemReport) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <ReportView
+          messages={data.messages}
+          title={data.title}
+          expiresAt={data.expiresAt}
+          createdAt={data.createdAt}
+        />
+      </div>
+    );
+  }
+
   return (
-    /* 🍎 여기서 min-h-screen을 빼고 h-full overflow-y-auto를 넣었어! */
     <div className="h-full overflow-y-auto" style={{ background: 'var(--neutral-50)' }}>
-      
       {/* 상단 배너 */}
       <div
         style={{

@@ -71,37 +71,31 @@ export const DataRenderer: FC<DataRendererProps> = ({ data }) => {
     stringCols[0] ??
     columns[0];
 
-  // 차트 표시 조건:
-  // - xKey 제외 숫자 컬럼 1~2개 (Bar 너무 많으면 표가 나음)
-  // - 전체 컬럼 4개 이하 (5개 이상이면 표만)
-  // - 데이터 1행 이상
+  // 숫자 컬럼이 1개 이상이고 데이터가 있으면 항상 차트 표시
   const chartBarCols = numericCols.filter((c) => c !== xKey);
-  const useChart =
-    chartBarCols.length >= 1 &&
-    chartBarCols.length <= 2 &&
-    columns.length <= 4 &&
-    data.length >= 1;
+  const useChart = chartBarCols.length >= 1 && data.length >= 1;
 
   /**
-   * 바로 쓸 차트 컬럼과 표 표시 여부.
-   * 단위 차이가 100배 초과이면 첫 번째 컬럼만 차트에 표시하고 표도 같이 보임.
+   * 차트에 사용할 컬럼: 최대 2개, 단위 차이 100배 초과이면 첫 번째만.
+   * 표는 항상 함께 표시.
    */
   const { colsToChart, showTable } = useMemo(() => {
-    if (!useChart) {
-      return { colsToChart: chartBarCols, showTable: true };
+    if (!useChart) return { colsToChart: [] as string[], showTable: true };
+
+    // 최대 2개 후보
+    const candidates = chartBarCols.slice(0, 2);
+    if (candidates.length < 2) {
+      return { colsToChart: candidates, showTable: true };
     }
-    if (chartBarCols.length < 2) {
-      return { colsToChart: chartBarCols, showTable: false };
-    }
-    const maxValues = chartBarCols.map((col) =>
+    const maxValues = candidates.map((col) =>
       Math.max(...data.map((r) => toNumber(r[col])))
     );
     const minVal = Math.min(...maxValues.filter((v) => v > 0));
     const ratio = minVal > 0 ? Math.max(...maxValues) / minVal : 1;
-    if (ratio > 100) {
-      return { colsToChart: [chartBarCols[0]], showTable: true };
-    }
-    return { colsToChart: chartBarCols, showTable: false };
+    return {
+      colsToChart: ratio > 100 ? [candidates[0]] : candidates,
+      showTable: true,
+    };
   }, [useChart, chartBarCols, data]);
 
   const sortedData = useMemo(() => {
