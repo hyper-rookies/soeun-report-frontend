@@ -19,7 +19,7 @@ export default function CallbackHandler() {
     }
 
     const redirectUri = window.location.origin + '/auth/callback';
-    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL + '/api/auth/callback';
+    const apiUrl = '/api/auth/callback';
 
     fetch(apiUrl, {
       method: 'POST',

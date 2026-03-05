@@ -167,7 +167,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const fetchReports = async () => {
     const token = getAccessToken();
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/chat/reports`,
+      `/api/chat/reports`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const data = await res.json();
