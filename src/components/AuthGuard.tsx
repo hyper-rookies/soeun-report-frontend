@@ -10,7 +10,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const PUBLIC_PATHS = ['/auth', '/auth/callback'];
+    const PUBLIC_PATHS = ['/auth', '/auth/callback', '/shared'];
     const isPublic = PUBLIC_PATHS.some(
       (p) => pathname === p || pathname.startsWith(p)
     );

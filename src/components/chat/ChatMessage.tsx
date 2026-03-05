@@ -11,7 +11,7 @@ interface ChatMessageProps {
   isStreaming?: boolean;
 }
 
-// SSE 스트리밍 텍스트에서 헤딩/리스트 앞 줄바꿈이 누락될 수 있어 보정
+// SSE 스트리밍 텍스트에서 헤딩/리스트/구분선 앞 줄바꿈이 누락될 수 있어 보정
 function normalizeMarkdown(text: string): string {
   return text
     .replace(/\\n/g, '\n')
@@ -19,20 +19,22 @@ function normalizeMarkdown(text: string): string {
     .replace(/(#{1,3})([^\s#\n])/g, '$1 $2')  // # 뒤 공백 누락 보정 (###제목 → ### 제목)
     .replace(/([^\n])(#{1,3} )/g, '$1\n\n$2')  // ## 앞 줄바꿈 2개 보장
     .replace(/([^\n])(- )/g, '$1\n$2')          // - 리스트 앞 줄바꿈 보장
+    .replace(/([^\n])---/g, '$1\n\n---')        // --- 앞 줄바꿈 보장 (hr 인식)
+    .replace(/---([^\n])/g, '---\n\n$1')        // --- 뒤 줄바꿈 보장
+    .replace(/([^\n])\*\*\*/g, '$1\n\n***')     // *** 앞 줄바꿈 보장 (hr 인식)
+    .replace(/\*\*\*([^\n])/g, '***\n\n$1')     // *** 뒤 줄바꿈 보장
     .replace(/ {2,}/g, ' ');                     // 연속 공백 정리
 }
 
-// AI가 SSE "data" 이벤트 대신 텍스트로 JSON/표를 직접 출력할 때 해당 줄 제거
+// 마크다운 표를 DataRenderer로 위임하므로 표 행 제거
 function cleanContent(content: string): string {
   return content
     .split('\n')
     .filter((line) => {
       const t = line.trim();
-      // JSON 배열 줄 제거
-      if (t.startsWith('[{') || t.startsWith('[{"')) return false;
       // 마크다운 표 구분자 줄 제거 (|---|---|)
       if (t.startsWith('|') && t.includes('---')) return false;
-      // 마크다운 표 데이터 행 제거 (모든 | 로 시작하는 줄)
+      // 마크다운 표 데이터 행 제거 (| 로 시작하고 | 로 끝나는 줄)
       if (t.startsWith('|') && t.endsWith('|')) return false;
       return true;
     })

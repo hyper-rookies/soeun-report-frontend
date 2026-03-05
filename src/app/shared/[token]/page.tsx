@@ -6,6 +6,18 @@ import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
 import { API_CONFIG, API_ENDPOINTS } from '@/utils/constants';
 
+interface SharedMessage {
+  role: string;
+  content: string;
+  timestamp?: number;
+  structuredData?: Record<string, unknown>[];
+}
+
+interface SharedConversationRaw {
+  messages: SharedMessage[];
+  expiresAt?: string;
+}
+
 interface SharedConversation {
   messages: ChatMessageType[];
   expiresAt?: string;
@@ -34,9 +46,17 @@ export default function SharedPage() {
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
-        return (json.data ?? json) as SharedConversation;
+        return (json.data ?? json) as SharedConversationRaw;
       })
-      .then((d) => setData(d))
+      .then((raw) => {
+        const messages: ChatMessageType[] = raw.messages.map((msg) => ({
+          role: msg.role as ChatMessageType['role'],
+          content: msg.content,
+          timestamp: msg.timestamp ?? 0,
+          ...(msg.structuredData?.length ? { data: msg.structuredData } : {}),
+        }));
+        setData({ messages, expiresAt: raw.expiresAt });
+      })
       .catch(() => setError('공유 링크가 만료되었거나 존재하지 않습니다.'))
       .finally(() => setLoading(false));
   }, [token]);

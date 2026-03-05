@@ -49,6 +49,7 @@ export const chatService = {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let currentEventType = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -57,8 +58,6 @@ export const chatService = {
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
-        let currentEventType = '';
         for (const line of lines) {
           // 빈 줄 = SSE 이벤트 구분자 → event type 초기화
           if (line === '') {
@@ -93,7 +92,7 @@ export const chatService = {
                 // 파싱 실패 시 무시
               }
             } else {
-              // 기본 텍스트 청크
+              // SSE "message" 이벤트 → 텍스트 청크 append
               onData(data);
             }
           }
