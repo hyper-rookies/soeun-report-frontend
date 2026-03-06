@@ -48,3 +48,30 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
+
+export interface DashboardSummaryResponse {
+  adCost: {
+    today: number
+    yesterday: number
+    thisWeek: number
+    todayChangeRate: number
+    thisWeekChangeRate: number
+  }
+  mediaShare: {
+    name: string
+    value: number
+  }[]
+  dailyConversions: {
+    date: string
+    conversions: number
+    clicks: number
+  }[]
+  performanceMetrics: {
+    cpc: number
+    ctr: number
+    roas: number
+  }
+}
+
+export const getDashboardSummary = (): Promise<DashboardSummaryResponse> =>
+  apiClient.get('/api/dashboard/summary').then(res => res.data)

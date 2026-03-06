@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, useEffect, useRef } from 'react';
-import { ChatMessage as ChatMessageType } from '@/types/chat';
+import { ChatMessage as ChatMessageType, StreamNode } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import Image from 'next/image';
 
@@ -10,6 +10,8 @@ interface ChatWindowProps {
   isLoading: boolean;
   isStreamingComplete: boolean;
   isNewChat?: boolean;
+  streamingNodes?: StreamNode[];
+  isStreamingActive?: boolean;
 }
 
 export const ChatWindow: FC<ChatWindowProps> = ({
@@ -17,6 +19,8 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   isLoading,
   isStreamingComplete,
   isNewChat = false,
+  streamingNodes,
+  isStreamingActive = false,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +36,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
       ? messages.slice(0, -1)
       : messages;
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !isLoading) {
     return <div className="flex-1" style={{ background: 'var(--neutral-50)' }} />;
   }
 
@@ -63,13 +67,15 @@ export const ChatWindow: FC<ChatWindowProps> = ({
       >
         {displayMessages.map((message, index) => {
           const isLastMessage = index === displayMessages.length - 1;
-          const isStreaming = isLastMessage && isLoading && !isStreamingComplete;
+          const isStreaming = isLastMessage && (isStreamingActive || (isLoading && !isStreamingComplete));
+          const nodes = isLastMessage ? streamingNodes : undefined;
 
           return (
             <ChatMessage
               key={`${message.timestamp}-${message.role}-${index}`}
               message={message}
               isStreaming={isStreaming}
+              nodes={nodes}
             />
           );
         })}

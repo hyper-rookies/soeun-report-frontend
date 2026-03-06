@@ -44,6 +44,23 @@ export interface ConversationSummary {
 }
 
 /**
+ * SSE 스트리밍 노드 타입
+ */
+export type StreamNodeType =
+  | 'paragraph'
+  | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  | 'ol' | 'ul'
+  | 'hr'
+  | 'code';
+
+export interface StreamNode {
+  id: number;
+  type: StreamNodeType;
+  content: string;
+  complete: boolean;
+}
+
+/**
  * SSE 이벤트
  */
 export interface SSEEvent {

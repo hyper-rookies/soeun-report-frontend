@@ -1,7 +1,21 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useChatStore } from '@/store';
 import { chatService } from '@/services';
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage, StreamNode, StreamNodeType } from '@/types/chat';
+
+/**
+ * 텍스트 첫 줄을 보고 노드 타입 결정
+ */
+function detectNodeType(text: string): StreamNodeType {
+  const t = text.trimStart();
+  const hMatch = t.match(/^(#{1,6})\s/);
+  if (hMatch) return `h${hMatch[1].length}` as StreamNodeType;
+  if (/^[-*]\s/.test(t)) return 'ul';
+  if (/^\d+\.\s/.test(t)) return 'ol';
+  if (/^-{3,}\s*$/.test(t)) return 'hr';
+  if (/^```/.test(t)) return 'code';
+  return 'paragraph';
+}
 
 /**
  * SSE 연결 및 메시지 송수신 관리 훅
@@ -10,13 +24,17 @@ export const useSSE = (conversationId: string) => {
   const store = useChatStore();
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ✅ [해결의 핵심]: 전체 store가 아닌, 변경되지 않는 함수(setLoading)만 빼서 사용
+  // setLoading만 분리 — store 전체 구독 방지
   const { setLoading } = store;
 
-  /**
-   * SSE 연결 해제
-   * 이제 store가 바뀌어도 이 함수는 재시동되지 않으므로 무한 루프가 끊어짐!
-   */
+  // 노드 스트리밍 상태
+  const [nodes, setNodes] = useState<StreamNode[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const nodesRef = useRef<StreamNode[]>([]);
+  const pendingTextRef = useRef('');   // 마지막 \n\n 이후 아직 완료되지 않은 텍스트
+  const nodeCounterRef = useRef(0);
+  const isFirstChunkRef = useRef(true);
+
   const closeConnection = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -25,10 +43,6 @@ export const useSSE = (conversationId: string) => {
     setLoading(false);
   }, [setLoading]);
 
-  /**
-   * 컴포넌트 언마운트 시 연결 정리
-   * closeConnection이 안전하게 고정되었으므로 마운트/언마운트 시 1번만 실행됨
-   */
   useEffect(() => {
     return () => {
       closeConnection();
@@ -39,13 +53,11 @@ export const useSSE = (conversationId: string) => {
    * 메시지 전송 및 SSE 스트리밍 시작
    * @param userMessage 전송할 메시지
    * @param targetId 실제 전송 대상 conversationId (생략 시 훅 초기화 값 사용)
-   *                 'new' 모드에서 대화를 먼저 생성한 후 실제 id를 전달할 때 사용
    */
   const sendMessage = useCallback(
     async (userMessage: string, targetId?: string) => {
       const actualId = targetId ?? conversationId;
 
-      // 유효성 검사
       if (!userMessage.trim()) {
         store.setError('메시지를 입력해주세요.');
         return;
@@ -56,12 +68,18 @@ export const useSSE = (conversationId: string) => {
         return;
       }
 
-      // 요청 시작
+      // 노드 상태 초기화
+      nodesRef.current = [];
+      pendingTextRef.current = '';
+      nodeCounterRef.current = 0;
+      isFirstChunkRef.current = true;
+      setNodes([]);
+      setIsStreaming(false);
+
       store.setLoading(true);
       store.setError(null);
       store.setStreamingComplete(false);
 
-      // 사용자 메시지 저장
       const userMsg: ChatMessage = {
         role: 'user',
         content: userMessage,
@@ -69,7 +87,6 @@ export const useSSE = (conversationId: string) => {
       };
       store.addMessage(userMsg);
 
-      // Assistant 메시지 플레이스홀더 추가 (스트리밍용)
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: '',
@@ -77,30 +94,100 @@ export const useSSE = (conversationId: string) => {
       };
       store.addMessage(assistantMsg);
 
+      // 노드 배열을 ref와 state 동시 갱신
+      const updateNodes = (updated: StreamNode[]) => {
+        nodesRef.current = updated;
+        setNodes([...updated]);
+      };
+
       try {
-        // SSE 요청
         await chatService.sendMessage(
           actualId,
           userMessage,
-          // onData: 텍스트 청크 수신
+          // onData: 청크 수신 → store 누적 + 노드 파싱
           (chunk: string) => {
             store.appendToLastMessage(chunk);
+
+            // 첫 청크: isLoading → false, isStreaming → true
+            if (isFirstChunkRef.current) {
+              isFirstChunkRef.current = false;
+              store.setLoading(false);
+              setIsStreaming(true);
+            }
+
+            pendingTextRef.current += chunk;
+            const parts = pendingTextRef.current.split('\n\n');
+            pendingTextRef.current = parts.pop()!;
+
+            const currentNodes = [...nodesRef.current];
+
+            // \n\n 이전 세그먼트들 → 완료 노드 처리
+            for (const segment of parts) {
+              if (!segment.trim()) continue;
+              const last = currentNodes[currentNodes.length - 1];
+              if (last && !last.complete) {
+                // 진행 중이던 노드를 최종 내용으로 완료
+                currentNodes[currentNodes.length - 1] = {
+                  ...last,
+                  content: segment,
+                  type: detectNodeType(segment),
+                  complete: true,
+                };
+              } else {
+                nodeCounterRef.current++;
+                currentNodes.push({
+                  id: nodeCounterRef.current,
+                  type: detectNodeType(segment),
+                  content: segment,
+                  complete: true,
+                });
+              }
+            }
+
+            // \n\n 이후 남은 텍스트 → 진행 중 노드 갱신
+            if (pendingTextRef.current) {
+              const last = currentNodes[currentNodes.length - 1];
+              if (last && !last.complete) {
+                currentNodes[currentNodes.length - 1] = {
+                  ...last,
+                  content: pendingTextRef.current,
+                  type: detectNodeType(pendingTextRef.current),
+                };
+              } else {
+                nodeCounterRef.current++;
+                currentNodes.push({
+                  id: nodeCounterRef.current,
+                  type: detectNodeType(pendingTextRef.current),
+                  content: pendingTextRef.current,
+                  complete: false,
+                });
+              }
+            }
+
+            updateNodes(currentNodes);
           },
-          // onComplete: 스트리밍 완료
+          // onComplete: 마지막 노드 완료 처리
           () => {
+            const currentNodes = [...nodesRef.current];
+            const last = currentNodes[currentNodes.length - 1];
+            if (last && !last.complete) {
+              currentNodes[currentNodes.length - 1] = { ...last, complete: true };
+              updateNodes(currentNodes);
+            }
+            setIsStreaming(false);
             store.setLoading(false);
             store.setStreamingComplete(true);
           },
-          // onError: 에러 발생
+          // onError: 에러 처리
           (error: string) => {
             store.setError(error);
             store.setLoading(false);
-            // 에러 시 빈 assistant 플레이스홀더 제거
+            setIsStreaming(false);
             const messages = store.messages.slice(0, -1);
             store.clearMessages();
             messages.forEach((msg) => store.addMessage(msg));
           },
-          // onStructuredData: SSE "data" 이벤트 (차트/표)
+          // onStructuredData: 차트/표 데이터
           (data: Record<string, unknown>[]) => {
             store.setLastMessageData(data);
           }
@@ -110,6 +197,7 @@ export const useSSE = (conversationId: string) => {
           error instanceof Error ? error.message : '예상치 못한 오류가 발생했어요.';
         store.setError(errorMessage);
         store.setLoading(false);
+        setIsStreaming(false);
       }
     },
     [conversationId, store]
@@ -119,6 +207,8 @@ export const useSSE = (conversationId: string) => {
     sendMessage,
     closeConnection,
     isLoading: store.isLoading,
+    isStreaming,
+    nodes,
     error: store.error,
     isStreamingComplete: store.isStreamingComplete,
   };

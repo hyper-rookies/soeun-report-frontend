@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { conversationService } from '@/services';
 import apiClient from '@/lib/axiosInstance';
 import { getAccessToken } from '@/lib/auth';
@@ -252,6 +252,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   onNewConversation,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const conversations = useChatStore((s) => s.conversations);
   const setConversations = useChatStore((s) => s.setConversations);
   const removeConversation = useChatStore((s) => s.removeConversation);
@@ -462,6 +463,14 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               />
             </div>
           )}
+
+          <NavItem
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z" /></svg>}
+            label="대시보드"
+            active={pathname === '/dashboard'}
+            onClick={() => router.push('/dashboard')}
+            collapsed={!isOpen}
+          />
 
           <NavItem
             icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>}
