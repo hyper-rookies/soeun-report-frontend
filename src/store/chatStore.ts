@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 import { ChatMessage, Conversation, ConversationSummary } from '@/types/chat';
 
 /**
- * Chat Store State
+ * Chat Store State Interface
  */
 export interface ChatState {
   // 현재 대화 상태
@@ -19,6 +19,7 @@ export interface ChatState {
 
   // UI 상태
   sidebarOpen: boolean;
+  toastMessage: string | null; // 🍎 추가: 토스트 메시지 상태
 
   // Actions
   setConversationId: (id: string) => void;
@@ -39,18 +40,17 @@ export interface ChatState {
 
   // UI Actions
   setSidebarOpen: (open: boolean) => void;
+  setToast: (msg: string | null) => void; // 🍎 추가: 토스트 설정 액션
 }
 
 /**
  * Zustand Chat Store
- * - devtools: Redux DevTools 연동
- * - persist: localStorage에 저장
  */
 export const useChatStore = create<ChatState>()(
   devtools(
     persist(
       (set) => ({
-        // 초기 상태
+        // ── 초기 상태 ──────────────────────────────────────────────────
         conversationId: null,
         conversation: null,
         messages: [],
@@ -59,11 +59,11 @@ export const useChatStore = create<ChatState>()(
         isStreamingComplete: false,
         conversations: [],
         sidebarOpen: false,
+        toastMessage: null,
 
-        // 대화 ID 설정
+        // ── 대화 관련 Actions ──────────────────────────────────────────
         setConversationId: (id) => set({ conversationId: id }),
 
-        // 전체 대화 설정
         setConversation: (conversation) =>
           set({
             conversation,
@@ -71,11 +71,9 @@ export const useChatStore = create<ChatState>()(
             messages: conversation.messages,
           }),
 
-        // 메시지 추가
         addMessage: (message) =>
           set((state) => ({ messages: [...state.messages, message] })),
 
-        // 마지막 메시지에 텍스트 추가 (스트리밍용)
         appendToLastMessage: (text) =>
           set((state) => {
             const messages = [...state.messages];
@@ -89,7 +87,6 @@ export const useChatStore = create<ChatState>()(
             return { messages };
           }),
 
-        // 마지막 메시지에 구조 데이터 설정 (SSE "data" 이벤트용)
         setLastMessageData: (data) =>
           set((state) => {
             const messages = [...state.messages];
@@ -100,19 +97,14 @@ export const useChatStore = create<ChatState>()(
             return { messages };
           }),
 
-        // 로딩 상태 설정
         setLoading: (loading) => set({ isLoading: loading }),
 
-        // 에러 설정
         setError: (error) => set({ error }),
 
-        // 스트리밍 완료 상태
         setStreamingComplete: (complete) => set({ isStreamingComplete: complete }),
 
-        // 메시지 초기화
         clearMessages: () => set({ messages: [] }),
 
-        // 전체 채팅 초기화
         resetChat: () =>
           set({
             conversationId: null,
@@ -123,31 +115,39 @@ export const useChatStore = create<ChatState>()(
             isStreamingComplete: false,
           }),
 
-        // 대화 목록 설정
+        // ── 대화 목록 Actions ──────────────────────────────────────────
         setConversations: (conversations) => set({ conversations }),
 
-        // 대화 추가 (목록 맨 앞에 삽입)
         addConversation: (conversation) =>
           set((state) => ({
             conversations: [conversation, ...state.conversations],
           })),
 
-        // 대화 제거
         removeConversation: (id) =>
           set((state) => ({
             conversations: state.conversations.filter((c) => c.id !== id),
           })),
 
-        // 사이드바 열기/닫기
+        // ── UI Actions ────────────────────────────────────────────────
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+        setToast: (msg) => {
+          set({ toastMessage: msg });
+          // 3초 후 자동으로 토스트 제거
+          if (msg) {
+            setTimeout(() => {
+              set({ toastMessage: null });
+            }, 3000);
+          }
+        },
       }),
       {
         name: 'chat-store',
-        // localStorage에 저장할 상태만 지정
         partialize: (state) => ({
-          // 'new'는 임시 상태이므로 localStorage에 저장하지 않음
+          // 'new' 및 UI 일시적 상태(toastMessage 등)는 저장하지 않음
           conversationId: state.conversationId === 'new' ? null : state.conversationId,
           messages: state.messages,
+          sidebarOpen: state.sidebarOpen,
         }),
       }
     )
