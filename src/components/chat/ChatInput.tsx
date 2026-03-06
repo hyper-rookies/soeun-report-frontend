@@ -63,7 +63,7 @@ export const ChatInput: FC<ChatInputProps> = ({
 
   const isButtonDisabled = disabled || isLoading || isSending || !input.trim();
 
-  // 🍎 사이드바와 구분선 높이를 정확히 124px로 맞춤
+  // 🍎 사이드바와 구분선 높이를 정확히 120px로 맞춤
   const containerStyle: React.CSSProperties = {
     background: 'var(--neutral-50)',
     borderTop: '1px solid var(--neutral-100)',
