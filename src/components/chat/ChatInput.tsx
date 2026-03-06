@@ -28,10 +28,15 @@ export const ChatInput: FC<ChatInputProps> = ({
     textareaRef.current?.focus();
   }, [presetValue]);
 
+  // 🍎 높이 자동 조절 로직 (비어있을 땐 정확히 24px 유지)
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      if (input === '') {
+        textareaRef.current.style.height = '24px';
+      } else {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      }
     }
   }, [input]);
 
@@ -58,14 +63,19 @@ export const ChatInput: FC<ChatInputProps> = ({
 
   const isButtonDisabled = disabled || isLoading || isSending || !input.trim();
 
+  // 🍎 사이드바와 구분선 높이를 정확히 124px로 맞춤
   const containerStyle: React.CSSProperties = {
     background: 'var(--neutral-50)',
     borderTop: '1px solid var(--neutral-100)',
-    padding: '16px 16px 20px',
+    padding: '20px 16px', 
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'center', // 세로 중앙 정렬로 패딩 오차 방지
     alignItems: 'center',
     width: '100%',
+    flexShrink: 0, 
+    boxSizing: 'border-box',
+    minHeight: '120px', // 🍎 빈 상태에서 높이를 120px로 완벽 고정
   };
 
   const inputBoxStyle: React.CSSProperties = {
@@ -143,8 +153,8 @@ export const ChatInput: FC<ChatInputProps> = ({
         </div>
 
         <p
-          className="text-[11px] mt-2 text-center"
-          style={{ color: 'var(--neutral-300)' }}
+          className="text-[11px] text-center"
+          style={{ color: 'var(--neutral-300)', marginTop: '10px', lineHeight: '1.4' }}
         >
           AI 리포트는 부정확한 내용이 있을 수 있어요. 중요한 수치는 광고 대시보드를 직접 확인해 주세요.
         </p>

@@ -9,7 +9,6 @@ import { ChatContainer } from '@/components/chat/ChatContainer';
 
 export default function ChatPage() {
   const params = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const conversationId = params.conversationId as string;
   const presetValue = searchParams.get('preset') ?? undefined;
@@ -19,8 +18,6 @@ export default function ChatPage() {
   const setConversation   = useChatStore((s) => s.setConversation);
   const setLoading        = useChatStore((s) => s.setLoading);
   const setError          = useChatStore((s) => s.setError);
-  const setSidebarOpen    = useChatStore((s) => s.setSidebarOpen);
-  const resetChat         = useChatStore((s) => s.resetChat);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -64,23 +61,8 @@ export default function ChatPage() {
     };
   }, [conversationId, setConversationId, clearMessages, setConversation, setLoading, setError]);
 
-  const handleNewConversation = () => {
-    resetChat();
-    router.push('/chat/new');
-  };
-
-  const handleShare = async () => {
-    try {
-      const res = await apiClient.post(API_ENDPOINTS.SHARE.CREATE(conversationId));
-      const { shareUrl: newShareUrl } = res.data.data ?? res.data;
-      setShareUrl(newShareUrl);
-      setShareModalOpen(true);
-      setIsCopied(false);
-    } catch {
-      alert('공유 링크 생성에 실패했습니다.');
-    }
-  };
-
+  // 💡 상단 액션바(공유 버튼 포함)가 사라졌지만, 추후 다른 곳에서 
+  // 공유 기능을 쓸 수 있도록 모달 로직과 핸들러는 안전하게 남겨두었습니다.
   const handleCopyLink = async () => {
     if (!shareUrl) return;
     try {
@@ -97,60 +79,14 @@ export default function ChatPage() {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--white)] relative">
       
-      {/* 액션바 */}
-      <div
-        className="shrink-0 flex items-center justify-end" /* 햄버거 버튼 삭제 후 우측 정렬 유지 */
-        style={{
-          background: 'var(--white)',
-          borderBottom: '1px solid var(--border-default)',
-          boxShadow: 'var(--shadow-xs)',
-          paddingInlineStart: '16px',
-          paddingInlineEnd: '12px',
-          height: '52px',
-          zIndex: 10,
-        }}
-      >
-        <div className="flex items-center gap-2">
-          {conversationId !== 'new' && (
-            <button
-              onClick={handleShare}
-              title="공유 링크 만들기"
-              aria-label="공유 링크 만들기"
-              className="cds-btn cds-btn--icon cds-btn--ghost"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-            </button>
-          )}
-
-          <button
-            onClick={handleNewConversation}
-            className="cds-btn cds-btn--md"
-            style={{
-              background: 'var(--white)',
-              color: 'var(--text-ink)',
-              border: '1px solid var(--border-strong)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--surface-canvas)')}
-            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--white)')}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            새 채팅
-          </button>
-        </div>
-      </div>
+      {/* 액션바 영역(shrink-0 flex items-center justify-end...) 전체 삭제 완료! */}
 
       {/* 채팅 컨테이너 */}
       <div className="flex-1 overflow-hidden relative">
         <ChatContainer conversationId={conversationId} presetValue={presetValue} />
       </div>
 
-      {/* 제미나이 스타일 공유 모달 */}
+      {/* 제미나이 스타일 공유 모달 (현재는 띄울 버튼이 없지만 기능은 유지) */}
       {shareModalOpen && (
         <div 
           className="fixed inset-0 flex items-center justify-center px-4"

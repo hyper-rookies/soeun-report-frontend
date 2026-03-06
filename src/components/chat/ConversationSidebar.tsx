@@ -86,8 +86,9 @@ function NavItem({
     <div className="relative group w-full flex justify-center">
       <button
         onClick={onClick}
-        className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${
-          collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'
+        // 🍎 h-10(40px)를 명시적으로 주어 접히든 펼치든 높이가 절대 변하지 않도록 고정!
+        className={`flex items-center rounded-lg text-[13px] font-medium transition-colors h-10 ${
+          collapsed ? 'justify-center w-10 mx-auto' : 'px-3 w-full gap-2.5'
         }`}
         style={{
           background: active ? 'var(--neutral-100)' : 'transparent',
@@ -104,7 +105,7 @@ function NavItem({
         {!collapsed && <span className="flex-1 text-left truncate">{label}</span>}
       </button>
 
-      {/* 디자인 시스템에 맞춘 여유롭고 예쁜 툴팁 */}
+      {/* 디자인 시스템 툴팁 */}
       {collapsed && (
         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 px-4 py-3 bg-[var(--white)] text-[var(--neutral-600)] text-[13px] font-normal leading-relaxed rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[2100] shadow-[var(--shadow-lg)] border border-[var(--border-default)] pointer-events-none whitespace-nowrap">
           {label}
@@ -134,10 +135,8 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const setConversations  = useChatStore((s) => s.setConversations);
   const removeConversation = useChatStore((s) => s.removeConversation);
   
-  // 상태 변경용 토글 함수
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
 
-  // ── list state ────────────────────────────────────────────────────────────
   const [loading,      setLoading]      = useState(false);
   const [reports,      setReports]      = useState<Record<string, unknown>[]>([]);
   const [deletingId,   setDeletingId]   = useState<string | null>(null);
@@ -147,12 +146,10 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const fetchCountRef = useRef(0);
   const tokenCacheRef = useRef<Record<string, string>>({});
 
-  // ── nav state ─────────────────────────────────────────────────────────────
-  const [reportOpen,   setReportOpen]   = useState(false); // 기본 닫힘
+  const [reportOpen,   setReportOpen]   = useState(false); 
   const [searchQuery,  setSearchQuery]  = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // ── generation state ──────────────────────────────────────────────────────
   const [genStatus,     setGenStatus]     = useState<GenStatus>('idle');
   const [genProgress,   setGenProgress]   = useState(0);
   const [genPhase,      setGenPhase]      = useState('');
@@ -162,7 +159,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const genStartRef   = useRef(0);
   const genTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── fetch list ────────────────────────────────────────────────────────────
   const fetchReports = async () => {
     const token = getAccessToken();
     const res = await fetch(
@@ -187,9 +183,8 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
       if (fetchId === fetchCountRef.current) setLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 컴포넌트 마운트 시 한 번만 불러오거나 필요에 따라 업데이트
+  }, []); 
 
-  // ── progress timer ────────────────────────────────────────────────────────
   useEffect(() => {
     if (genStatus === 'running') {
       genStartRef.current = Date.now();
@@ -204,13 +199,11 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     return () => { if (genTimerRef.current) clearInterval(genTimerRef.current); };
   }, [genStatus]);
 
-  // ── filters ───────────────────────────────────────────────────────────────
   const chatConvs = conversations;
   const filteredChats = searchQuery.trim()
     ? chatConvs.filter((c) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : chatConvs;
 
-  // ── share token ───────────────────────────────────────────────────────────
   const getShareToken = async (id: string): Promise<string> => {
     if (tokenCacheRef.current[id]) return tokenCacheRef.current[id];
     const res = await apiClient.post<Record<string, unknown>>(API_ENDPOINTS.SHARE.CREATE(id));
@@ -220,7 +213,6 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     return tok;
   };
 
-  // ── handlers ──────────────────────────────────────────────────────────────
   const handleNew = async () => { await onNewConversation(); };
   const handleSelect = (id: string) => { router.push(`/chat/${id}`); };
 
@@ -338,7 +330,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
         ) : (
           <div className="flex-1 flex items-center gap-2"
             style={{
-              padding: '8px 12px', borderRadius: '999px',
+              padding: '0 12px', height: '40px', borderRadius: '999px',
               background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)',
             }}>
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--neutral-400)' }}>
@@ -382,8 +374,8 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               if (!isOpen) { setSidebarOpen(true); setReportOpen(true); }
               else setReportOpen((v) => !v);
             }}
-            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${
-              !isOpen ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'
+            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors h-10 ${
+              !isOpen ? 'justify-center w-10 mx-auto' : 'px-3 w-full gap-2.5'
             }`}
             style={{ background: 'transparent', color: 'var(--neutral-600)', border: 'none', cursor: 'pointer' }}
             onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-50)')}
@@ -410,7 +402,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
           </div>
         </div>
 
-        {/* 리포트 펼침 패널 (열려있을 때만 표시) */}
+        {/* 리포트 펼침 패널 */}
         {isOpen && reportOpen && (
           <div style={{ marginLeft: '12px', paddingBottom: '4px', paddingTop: '8px' }}>
             {isGenerating && (
@@ -443,7 +435,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
 
       {isOpen && <div style={{ flexShrink: 0, height: '1px', background: 'var(--neutral-100)', margin: '0 12px 8px' }} />}
 
-      {/* ── 대화 목록 (접혔을 때도 레이아웃 골격을 유지하기 위해 무조건 렌더링하되, 컨텐츠만 숨김) ── */}
+      {/* ── 대화 목록 ── */}
       <div className="flex-1 overflow-y-auto px-2 pb-6">
         {isOpen && groups.map(({ label, items }) => (
           <div key={label} className="mb-1 mt-1">
@@ -464,12 +456,15 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
         ))}
       </div>
 
-      {/* ── 하단 프로필 & 설정 (항상 바닥에 고정됨) ── */}
+      {/* 🍎 하단 프로필 & 설정 (사이드바 120px 높이 완벽 고정) ── */}
       <div style={{
         flexShrink: 0,
-        padding: isOpen ? '16px 12px' : '16px 0',
+        height: '128px', // 🍎 오른쪽 인풋창과 높이를 완벽하게 일치시킴!
+        boxSizing: 'border-box',
+        padding: isOpen ? '0 12px' : '0',
         borderTop: '1px solid var(--neutral-100)',
-        display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'
+        display: 'flex', flexDirection: 'column', gap: '8px', 
+        justifyContent: 'center', alignItems: 'center'
       }}>
         <NavItem
           icon={
@@ -483,7 +478,9 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
 
         <div className="relative group w-full flex justify-center">
           <button
-            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${!isOpen ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'}`}
+            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors h-10 ${
+              !isOpen ? 'justify-center w-10 mx-auto' : 'px-3 w-full gap-2.5'
+            }`}
             style={{ background: 'transparent', color: 'var(--neutral-700)', border: 'none', cursor: 'pointer' }}
             onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-100)')}
             onMouseOut={(e)  => (e.currentTarget.style.background = 'transparent')}
