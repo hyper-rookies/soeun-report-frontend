@@ -99,7 +99,7 @@ export default function ChatPage() {
       
       {/* 액션바 */}
       <div
-        className="shrink-0 flex items-center justify-between"
+        className="shrink-0 flex items-center justify-end" /* 햄버거 버튼 삭제 후 우측 정렬 유지 */
         style={{
           background: 'var(--white)',
           borderBottom: '1px solid var(--border-default)',
@@ -110,18 +110,6 @@ export default function ChatPage() {
           zIndex: 10,
         }}
       >
-        <button
-          onClick={() => setSidebarOpen(true)}
-          aria-label="대화 목록 열기"
-          className="cds-btn cds-btn--icon cds-btn--ghost"
-        >
-          <span className="flex flex-col gap-[5px] items-center justify-center">
-            <span className="block w-[18px] h-[1.5px] rounded-full" style={{ background: 'currentColor' }} />
-            <span className="block w-[18px] h-[1.5px] rounded-full" style={{ background: 'currentColor' }} />
-            <span className="block w-[18px] h-[1.5px] rounded-full" style={{ background: 'currentColor' }} />
-          </span>
-        </button>
-
         <div className="flex items-center gap-2">
           {conversationId !== 'new' && (
             <button
@@ -162,7 +150,7 @@ export default function ChatPage() {
         <ChatContainer conversationId={conversationId} presetValue={presetValue} />
       </div>
 
-      {/* 🍎 제미나이 스타일 공유 모달 */}
+      {/* 제미나이 스타일 공유 모달 */}
       {shareModalOpen && (
         <div 
           className="fixed inset-0 flex items-center justify-center px-4"
@@ -208,9 +196,9 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* 🍎 링크 복사 영역 (크기와 여백 빵빵하게 키움!) */}
+            {/* 링크 복사 영역 */}
             <div 
-              className="flex items-center justify-between rounded-xl p-4" /* px-4 py-3에서 p-4(16px)로 여백 증가 */
+              className="flex items-center justify-between rounded-xl p-4"
               style={{ 
                 background: 'var(--surface-canvas)', 
                 border: '1px solid var(--border-default)' 
@@ -220,7 +208,7 @@ export default function ChatPage() {
                 type="text"
                 readOnly
                 value={shareUrl}
-                className="flex-1 bg-transparent border-none outline-none text-[15px] mr-4" /* 폰트 사이즈 14px -> 15px로 키움 */
+                className="flex-1 bg-transparent border-none outline-none text-[15px] mr-4"
                 style={{ color: 'var(--text-ink)' }}
                 onClick={(e) => e.currentTarget.select()} 
               />
@@ -228,7 +216,7 @@ export default function ChatPage() {
               <button
                 onClick={handleCopyLink}
                 title="링크 복사"
-                className="shrink-0 p-3 rounded-lg transition-all flex items-center justify-center cursor-pointer" /* 버튼 안쪽 여백을 p-2.5 -> p-3으로 키움 */
+                className="shrink-0 p-3 rounded-lg transition-all flex items-center justify-center cursor-pointer"
                 style={{ 
                   background: isCopied ? 'var(--primary-50)' : 'var(--white)', 
                   border: '1px solid',
@@ -237,11 +225,11 @@ export default function ChatPage() {
                 }}
               >
                 {isCopied ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> {/* 아이콘 크기 w-4 -> w-5로 키움 */}
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> {/* 아이콘 크기 w-4 -> w-5로 키움 */}
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 )}

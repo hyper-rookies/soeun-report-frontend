@@ -24,20 +24,6 @@ function getRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
 
-function formatReportDate(conv: ConversationSummary): string {
-  const match = conv.title.match(/(\d{8})$/);
-  if (match) {
-    const d = match[1];
-    return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
-  }
-  if (conv.createdAt) {
-    return new Date(conv.createdAt).toLocaleDateString('ko-KR', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    });
-  }
-  return conv.title;
-}
-
 type Group = { label: string; items: ConversationSummary[] };
 
 function groupConversations(convs: ConversationSummary[]): Group[] {
@@ -88,32 +74,43 @@ type GenStatus = 'idle' | 'running' | 'done' | 'error';
 // ─── NavItem ──────────────────────────────────────────────────────────────────
 
 function NavItem({
-  icon, label, active, onClick,
+  icon, label, active, onClick, collapsed,
 }: {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
   onClick: () => void;
+  collapsed?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-2.5 rounded-lg text-[13px] font-medium"
-      style={{
-        padding: '8px 12px',
-        background: active ? 'var(--neutral-100)' : 'transparent',
-        color: 'var(--neutral-600)',
-        border: 'none',
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: 'background 0.1s',
-      }}
-      onMouseOver={(e) => { if (!active) e.currentTarget.style.background = 'var(--neutral-50)'; }}
-      onMouseOut={(e)  => { if (!active) e.currentTarget.style.background = 'transparent'; }}
-    >
-      <span style={{ color: 'var(--neutral-400)', display: 'flex' }}>{icon}</span>
-      {label}
-    </button>
+    <div className="relative group w-full flex justify-center">
+      <button
+        onClick={onClick}
+        className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${
+          collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'
+        }`}
+        style={{
+          background: active ? 'var(--neutral-100)' : 'transparent',
+          color: 'var(--neutral-600)',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+        onMouseOver={(e) => { if (!active) e.currentTarget.style.background = 'var(--neutral-50)'; }}
+        onMouseOut={(e)  => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+      >
+        <span className="shrink-0 flex items-center justify-center w-5 h-5" style={{ color: 'var(--neutral-400)' }}>
+          {icon}
+        </span>
+        {!collapsed && <span className="flex-1 text-left truncate">{label}</span>}
+      </button>
+
+      {/* 디자인 시스템에 맞춘 여유롭고 예쁜 툴팁 */}
+      {collapsed && (
+        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 px-4 py-3 bg-[var(--white)] text-[var(--neutral-600)] text-[13px] font-normal leading-relaxed rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[2100] shadow-[var(--shadow-lg)] border border-[var(--border-default)] pointer-events-none whitespace-nowrap">
+          {label}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -136,6 +133,9 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const conversations     = useChatStore((s) => s.conversations);
   const setConversations  = useChatStore((s) => s.setConversations);
   const removeConversation = useChatStore((s) => s.removeConversation);
+  
+  // 상태 변경용 토글 함수
+  const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
 
   // ── list state ────────────────────────────────────────────────────────────
   const [loading,      setLoading]      = useState(false);
@@ -148,7 +148,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const tokenCacheRef = useRef<Record<string, string>>({});
 
   // ── nav state ─────────────────────────────────────────────────────────────
-  const [reportOpen,   setReportOpen]   = useState(true);
+  const [reportOpen,   setReportOpen]   = useState(false); // 기본 닫힘
   const [searchQuery,  setSearchQuery]  = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -170,12 +170,10 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const data = await res.json();
-    console.log('[리포트 목록]', data);
     return (data.data || []) as Record<string, unknown>[];
   };
 
   useEffect(() => {
-    if (!isOpen) return;
     const fetchId = ++fetchCountRef.current;
     setLoading(true);
     Promise.all([
@@ -189,7 +187,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
       if (fetchId === fetchCountRef.current) setLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, []); // 컴포넌트 마운트 시 한 번만 불러오거나 필요에 따라 업데이트
 
   // ── progress timer ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -223,9 +221,8 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   };
 
   // ── handlers ──────────────────────────────────────────────────────────────
-  const handleNew = async () => { await onNewConversation(); onClose(); };
-
-  const handleSelect = (id: string) => { router.push(`/chat/${id}`); onClose(); };
+  const handleNew = async () => { await onNewConversation(); };
+  const handleSelect = (id: string) => { router.push(`/chat/${id}`); };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -241,38 +238,9 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     }
   };
 
-  const handleViewReport = async (id: string) => {
-    setLoadingShareId(id);
-    try {
-      const token = await getShareToken(id);
-      if (token) window.open(`/shared/${token}`, '_blank');
-      else { router.push(`/chat/${id}`); onClose(); }
-    } catch {
-      router.push(`/chat/${id}`); onClose();
-    } finally {
-      setLoadingShareId(null);
-    }
-  };
-
-  const handleCopyLink = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setLoadingShareId(id);
-    try {
-      const token = await getShareToken(id);
-      if (token) {
-        await navigator.clipboard.writeText(`${window.location.origin}/shared/${token}`);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-      }
-    } catch (err) {
-      console.error('[Sidebar] 링크 복사 실패:', err);
-    } finally {
-      setLoadingShareId(null);
-    }
-  };
-
   const handleGenerateReport = async () => {
     if (genStatus === 'running') return;
+    setSidebarOpen(true);
     setReportOpen(true);
     setGenStatus('running');
     setGenProgress(0);
@@ -283,7 +251,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     try {
       const token      = getAccessToken();
       const controller = new AbortController();
-      const timeoutId  = setTimeout(() => controller.abort(), 300_000); // 5분
+      const timeoutId  = setTimeout(() => controller.abort(), 300_000);
 
       const res = await fetch('/api/report/generate', {
         method: 'POST',
@@ -291,127 +259,90 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      const data = await res.json() as {
-        success?: boolean;
-        data?: { shareToken?: string };
-        error?: string;
-        message?: string;
-      };
-      console.log('[생성 응답 전체]', data);
-      console.log('[success]', data.success);
-      console.log('[shareToken]', data.data?.shareToken);
+      const data = await res.json() as { success?: boolean; data?: { shareToken?: string }; error?: string; message?: string; };
 
       if (!res.ok || data.success === false) {
         setGenStatus('error');
         setGenErrorType('general');
-        setGenError(data.message ?? data.error ?? '생성에 실패했습니다. 다시 시도해주세요.');
+        setGenError(data.message ?? data.error ?? '생성에 실패했습니다.');
         return;
       }
 
-      // 성공: 프로그레스 100% + 리포트 목록 재조회
       setGenProgress(100);
-
       const newReports = await fetchReports().catch(() => null);
       if (newReports) setReports(newReports);
-
-      // 신규 항목 하이라이트
-      const allReports = newReports ?? reports;
-      const newest = [...allReports].sort((a, b) => {
-        const aTs = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-        const bTs = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-        return bTs - aTs;
-      })[0];
-      if (newest) {
-        setNewlyAddedId(String(newest.conversationId ?? newest.id ?? ''));
-        setTimeout(() => setNewlyAddedId(null), 2500);
-      }
 
       setTimeout(() => {
         setGenStatus('done');
         setGenSuccessMsg(true);
-        setTimeout(() => {
-          setGenStatus('idle');
-          setGenSuccessMsg(false);
-        }, 3000);
+        setTimeout(() => { setGenStatus('idle'); setGenSuccessMsg(false); }, 3000);
       }, 1000);
     } catch (err) {
-      console.error('[Sidebar] 리포트 생성 실패:', err);
       setGenStatus('error');
-      if (err instanceof Error && err.name === 'AbortError') {
-        setGenErrorType('timeout');
-        setGenError('리포트 생성에 시간이 걸리고 있습니다. 잠시 후 목록을 확인해주세요.');
-        // 타임아웃은 백엔드에서 실제로 생성 중일 수 있으므로 자동으로만 닫기
-        setTimeout(() => setGenStatus('idle'), 6000);
-      } else if (err instanceof TypeError) {
-        setGenErrorType('network');
-        setGenError('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
-        setTimeout(() => setGenStatus('idle'), 5000);
-      } else {
-        setGenErrorType('general');
-        setGenError('리포트 생성에 실패했습니다. 다시 시도해주세요.');
-      }
+      setGenErrorType('general');
+      setGenError('생성에 실패했습니다.');
     }
   };
 
   const groups = groupConversations(filteredChats);
   const isGenerating = genStatus === 'running';
 
-  // ── today report check ────────────────────────────────────────────────────
-  const todayStr     = new Date().toISOString().slice(0, 10); // "2026-03-05"
-  const todayCompact = todayStr.replace(/-/g, '');            // "20260305"
-  const hasTodayReport = reports.some(
-    (r) =>
-      r.conversationId === `report_${todayCompact}` ||
-      (r.createdAt && String(r.createdAt).startsWith(todayStr)),
-  );
+  const todayStr     = new Date().toISOString().slice(0, 10);
+  const todayCompact = todayStr.replace(/-/g, '');
 
   return (
-    <>
-      {/* ── Backdrop ── */}
-      <div
-        aria-hidden
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 2040,
-          background: 'rgba(0,0,0,0.25)',
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? 'auto' : 'none',
-          transition: 'opacity 0.2s ease-in-out',
-        }}
-      />
+    <aside
+      aria-label="대화 목록"
+      className="shrink-0 flex flex-col bg-[var(--white)] border-r border-[var(--neutral-100)] relative"
+      style={{
+        width: isOpen ? '280px' : '68px',
+        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        height: '100%',
+        overflow: 'visible',
+      }}
+    >
+      {/* ── Header (햄버거 메뉴) ── */}
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center',
+        justifyContent: isOpen ? 'space-between' : 'center',
+        padding: isOpen ? '16px 12px' : '16px 0',
+        height: '60px',
+      }}>
+        <button
+          onClick={() => setSidebarOpen(!isOpen)}
+          className="flex items-center justify-center rounded-full transition-colors text-[var(--neutral-500)] hover:bg-[var(--neutral-100)]"
+          style={{ width: '40px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+          aria-label="메뉴 토글"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
 
-      {/* ── Sidebar panel ── */}
-      <aside
-        aria-label="대화 목록"
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 2050,
-          width: '280px', display: 'flex', flexDirection: 'column',
-          background: 'var(--white)',
-          borderRight: '1px solid var(--neutral-100)',
-          boxShadow: isOpen ? 'var(--shadow-2xl)' : 'none',
-          transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.2s ease-in-out',
-        }}
-      >
-        {/* ── Header (Gemini 스타일 검색창 배치) ── */}
-        <div style={{
-          flexShrink: 0, display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingInline: '16px 12px', height: '60px',
-          borderBottom: '1px solid var(--neutral-100)',
-          gap: '8px'
-        }}>
+      {/* ── Nav 영역 (순서 재배치 및 간격 확보) ── */}
+      <div className="flex flex-col gap-3" style={{ flexShrink: 0, padding: isOpen ? '16px 12px' : '16px 0' }}>
+
+        {/* 1. 검색창 */}
+        {!isOpen ? (
+          <NavItem
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            }
+            label="검색"
+            onClick={() => setSidebarOpen(true)}
+            collapsed={true}
+          />
+        ) : (
           <div className="flex-1 flex items-center gap-2"
             style={{
-              padding: '8px 12px',
-              borderRadius: '999px',
-              background: 'var(--neutral-50)',
-              border: '1px solid var(--neutral-200)',
+              padding: '8px 12px', borderRadius: '999px',
+              background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)',
             }}>
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              style={{ color: 'var(--neutral-400)' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--neutral-400)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               ref={searchInputRef}
@@ -419,392 +350,141 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="대화 검색..."
-              style={{
-                flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                fontSize: '13px', color: 'var(--neutral-700)',
-                width: '100%',
-              }}
+              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: 'var(--neutral-700)', width: '100%' }}
             />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{ color: 'var(--neutral-400)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
-              >
+              <button onClick={() => setSearchQuery('')} style={{ color: 'var(--neutral-400)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             )}
           </div>
+        )}
 
-          <button onClick={onClose} aria-label="닫기" className="cds-btn cds-btn--icon cds-btn--ghost shrink-0">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        {/* 2. 새 채팅 */}
+        <NavItem
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
-          </button>
-        </div>
+          }
+          label="새 채팅"
+          onClick={handleNew}
+          collapsed={!isOpen}
+        />
 
-        {/* ── Nav 영역 ── */}
-        <div style={{ flexShrink: 0, padding: '8px 12px' }}>
-
-          {/* 새 채팅 */}
-          <NavItem
-            icon={
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            }
-            label="새 채팅"
-            onClick={handleNew}
-          />
-
-          {/* 주간 리포트 토글 행 */}
+        {/* 3. 주간 리포트 토글 행 */}
+        <div className="relative group flex justify-center w-full">
           <button
-            onClick={() => setReportOpen((v) => !v)}
-            className="w-full flex items-center gap-2.5 rounded-lg text-[13px] font-medium"
-            style={{
-              padding: '8px 12px', background: 'transparent',
-              color: 'var(--neutral-600)', border: 'none', cursor: 'pointer', textAlign: 'left',
-              transition: 'background 0.1s',
+            onClick={() => {
+              if (!isOpen) { setSidebarOpen(true); setReportOpen(true); }
+              else setReportOpen((v) => !v);
             }}
+            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${
+              !isOpen ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'
+            }`}
+            style={{ background: 'transparent', color: 'var(--neutral-600)', border: 'none', cursor: 'pointer' }}
             onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-50)')}
             onMouseOut={(e)  => (e.currentTarget.style.background = 'transparent')}
           >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              style={{ color: 'var(--neutral-400)' }}>
+            <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--neutral-400)' }}>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <span className="flex-1">주간 리포트</span>
-            <svg
-              className="w-3.5 h-3.5"
-              style={{
-                color: 'var(--neutral-400)',
-                transform: reportOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                transition: 'transform 0.15s',
-              }}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            {isOpen && (
+              <>
+                <span className="flex-1 text-left truncate">주간 리포트</span>
+                <svg className="w-3.5 h-3.5" style={{ color: 'var(--neutral-400)', transform: reportOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </>
+            )}
           </button>
 
-          {/* 리포트 펼침 패널 */}
-          {reportOpen && (
-            <div style={{ marginLeft: '8px', paddingBottom: '4px' }}>
-
-              {/* 안내 문구 */}
-              <p className="text-[10px] px-1 pt-0.5 pb-2" style={{ color: 'var(--neutral-400)' }}>
-                매주 월요일 오전 8시에 자동 생성됩니다.
-              </p>
-
-              {/* ── 진행 상태 표시 (생성 중) ── */}
-              {isGenerating && (
-                <div style={{
-                  margin: '0 0 8px', padding: '10px 12px', borderRadius: '8px',
-                  background: 'var(--neutral-50)', border: '1px solid var(--neutral-100)',
-                }}>
-                  <p className="text-[12px] font-medium mb-2" style={{ color: 'var(--neutral-600)' }}>
-                    {genPhase}
-                  </p>
-                  <div style={{ height: '4px', borderRadius: '4px', background: 'var(--neutral-200)', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', borderRadius: '4px', background: 'var(--primary-500)',
-                      width: `${genProgress}%`,
-                      transition: genProgress === 100 ? 'width 0.4s ease-out' : 'width 0.3s linear',
-                    }} />
-                  </div>
-                  <p className="text-[10px] mt-1.5 text-right" style={{ color: 'var(--neutral-400)' }}>
-                    {Math.round(genProgress)}% · 약 30~60초 소요
-                  </p>
-                </div>
-              )}
-
-              {/* ── 완료 메시지 ── */}
-              {genSuccessMsg && (
-                <p className="text-[12px] font-medium px-1 pb-2" style={{ color: 'var(--primary-600)' }}>
-                  ✅ 리포트가 생성됐습니다. 아래 목록에서 확인하세요.
-                </p>
-              )}
-
-              {/* ── 오류 메시지 ── */}
-              {genStatus === 'error' && (
-                <div style={{
-                  margin: '0 0 8px', padding: '10px 12px', borderRadius: '8px',
-                  background: '#fff5f5', border: '1px solid #fed7d7',
-                }}>
-                  <p className="text-[12px] font-medium" style={{
-                    color: '#9b2c2c', marginBottom: genErrorType === 'general' ? '8px' : '0',
-                  }}>
-                    {genError}
-                  </p>
-                  {genErrorType === 'general' && (
-                    <button
-                      onClick={handleGenerateReport}
-                      className="text-[12px] font-medium rounded-md"
-                      style={{ padding: '4px 12px', background: '#9b2c2c', color: 'white', border: 'none', cursor: 'pointer' }}
-                    >
-                      다시 시도
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* ── 리포트 목록 ── */}
-              {loading ? (
-                <div style={{ padding: '6px 4px' }}>
-                  <div className="h-3 rounded animate-pulse" style={{ width: '70%', background: 'var(--neutral-100)' }} />
-                </div>
-              ) : reports.length === 0 ? (
-                <p className="text-[12px] text-center py-2" style={{ color: 'var(--neutral-300)' }}>
-                  생성된 리포트가 없습니다.
-                </p>
-              ) : (
-                reports.map((item) => {
-                  const itemId     = String(item.conversationId ?? item.id ?? '');
-                  const shareToken = String(item.shareToken ?? '');
-                  const dateLabel  = item.createdAt
-                    ? new Date(item.createdAt as string).toLocaleDateString('ko-KR', {
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                      })
-                    : String(item.title ?? '');
-                  const isLoadingShare = loadingShareId === itemId;
-                  const isCopied      = copiedId === itemId;
-                  const isNewItem     = newlyAddedId === itemId;
-                  const isTodayItem   =
-                    itemId === `report_${todayCompact}` ||
-                    (item.createdAt && String(item.createdAt).startsWith(todayStr));
-
-                  const handleView = () => {
-                    if (shareToken) window.open(`/shared/${shareToken}`, '_blank');
-                  };
-
-                  const handleCopy = async (e: React.MouseEvent) => {
-                    e.stopPropagation();
-                    if (!shareToken) return;
-                    setLoadingShareId(itemId);
-                    try {
-                      await navigator.clipboard.writeText(`${window.location.origin}/shared/${shareToken}`);
-                      setCopiedId(itemId);
-                      setTimeout(() => setCopiedId(null), 2000);
-                    } catch (err) {
-                      console.error('[Sidebar] 링크 복사 실패:', err);
-                    } finally {
-                      setLoadingShareId(null);
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={itemId || String(item.createdAt)}
-                      className="group relative flex items-center gap-1 rounded-lg"
-                      style={{
-                        padding: '5px 4px',
-                        background: (isNewItem || isTodayItem) ? 'var(--primary-50)' : 'transparent',
-                        border: (isTodayItem && !isNewItem) ? '1px solid var(--primary-100)' : '1px solid transparent',
-                        transition: 'background 0.4s',
-                      }}
-                    >
-                      {/* 날짜 + ↗ 보기 */}
-                      <button
-                        onClick={handleView}
-                        disabled={isLoadingShare || !shareToken}
-                        className="flex-1 text-left flex items-center gap-1.5 min-w-0"
-                        style={{
-                          background: 'none', border: 'none',
-                          cursor: (isLoadingShare || !shareToken) ? 'not-allowed' : 'pointer',
-                          padding: 0,
-                        }}
-                      >
-                        <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                          style={{ color: (isNewItem || isTodayItem) ? 'var(--primary-400)' : 'var(--neutral-300)' }}>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-[12px] truncate" style={{
-                          color: (isNewItem || isTodayItem) ? 'var(--primary-700)' : 'var(--neutral-600)',
-                          fontWeight: (isNewItem || isTodayItem) ? 600 : 400,
-                        }}>
-                          {dateLabel}
-                        </span>
-                        <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                          style={{ color: 'var(--primary-400)' }}>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </button>
-
-                      {/* 🔗 링크 복사 */}
-                      <button
-                        onClick={handleCopy}
-                        disabled={isLoadingShare || !shareToken}
-                        aria-label="링크 복사"
-                        title={isCopied ? '복사됨!' : '링크 복사'}
-                        className="shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{
-                          width: '22px', height: '22px',
-                          background: isCopied ? 'var(--primary-50)' : 'transparent',
-                          border: 'none',
-                          cursor: (isLoadingShare || !shareToken) ? 'not-allowed' : 'pointer',
-                          color: isCopied ? 'var(--primary-500)' : 'var(--neutral-300)',
-                        }}
-                        onMouseOver={(e) => { if (!isCopied) e.currentTarget.style.color = 'var(--primary-500)'; }}
-                        onMouseOut={(e)  => { if (!isCopied) e.currentTarget.style.color = 'var(--neutral-300)'; }}
-                      >
-                        {isCopied ? (
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                          </svg>
-                        )}
-                      </button>
-
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
+          {/* 주간 리포트 여유롭고 예쁜 툴팁 */}
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 px-4 py-3 bg-[var(--white)] text-[var(--neutral-600)] text-[13px] font-normal leading-relaxed rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[2100] shadow-[var(--shadow-lg)] border border-[var(--border-default)] pointer-events-none whitespace-nowrap">
+            {!isOpen && <div className="font-semibold text-[var(--neutral-700)] mb-1">주간 리포트</div>}
+            <span className="text-[12px] text-[var(--neutral-500)]">매주 월요일 오전 8시에 자동 생성됩니다.</span>
+          </div>
         </div>
 
-        {/* ── 구분선 ── */}
-        <div style={{ flexShrink: 0, height: '1px', background: 'var(--neutral-100)', margin: '0 12px 4px' }} />
-
-        {/* ── 대화 목록 ── */}
-        <div className="flex-1 overflow-y-auto px-2 pb-6">
-          {loading ? (
-            <div className="flex flex-col gap-1 px-2 pt-2">
-              {[100, 75, 90].map((w) => (
-                <div key={w} style={{ padding: '12px 18px' }}>
-                  <div className="h-3 rounded animate-pulse mb-1.5"
-                    style={{ width: `${w}%`, background: 'var(--neutral-100)' }} />
-                  <div className="h-2 rounded animate-pulse w-16" style={{ background: 'var(--neutral-100)' }} />
+        {/* 리포트 펼침 패널 (열려있을 때만 표시) */}
+        {isOpen && reportOpen && (
+          <div style={{ marginLeft: '12px', paddingBottom: '4px', paddingTop: '8px' }}>
+            {isGenerating && (
+              <div style={{ margin: '0 0 8px', padding: '10px 12px', borderRadius: '8px', background: 'var(--neutral-50)', border: '1px solid var(--neutral-100)' }}>
+                <p className="text-[12px] font-medium mb-2" style={{ color: 'var(--neutral-600)' }}>{genPhase}</p>
+                <div style={{ height: '4px', borderRadius: '4px', background: 'var(--neutral-200)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: '4px', background: 'var(--primary-500)', width: `${genProgress}%`, transition: genProgress === 100 ? 'width 0.4s ease-out' : 'width 0.3s linear' }} />
                 </div>
-              ))}
-            </div>
-          ) : groups.length === 0 ? (
-            <p className="text-[13px] text-center pt-8" style={{ color: 'var(--neutral-300)' }}>
-              {searchQuery ? '검색 결과가 없습니다.' : '새로운 채팅을 시작해보세요.'}
-            </p>
-          ) : (
-            groups.map(({ label, items }) => (
-              <div key={label} className="mb-1 mt-1">
-                <p className="text-[10px] font-semibold tracking-[0.06em] uppercase"
-                  style={{ color: 'var(--neutral-300)', padding: '8px 18px 4px' }}>
-                  {label}
-                </p>
-                {items.map((conv) => {
-                  const active    = conv.id === currentConversationId;
-                  const isDeleting = deletingId === conv.id;
-                  return (
-                    <div
-                      key={conv.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleSelect(conv.id)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSelect(conv.id)}
-                      className="group flex items-start gap-1 cursor-pointer rounded-lg mb-px"
-                      style={{
-                        padding: '12px 18px',
-                        background: active ? 'var(--primary-50)' : 'transparent',
-                        color: active ? 'var(--primary-700)' : 'var(--neutral-500)',
-                        borderLeft: active ? '2px solid var(--primary-500)' : '2px solid transparent',
-                        transition: 'background-color 0.1s, color 0.1s',
-                      }}
-                      onMouseOver={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.background = 'var(--neutral-50)';
-                          e.currentTarget.style.color = 'var(--neutral-700)';
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.color = 'var(--neutral-500)';
-                        }
-                      }}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium leading-snug truncate">
-                          {conv.title || '새 대화'}
-                        </p>
-                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--neutral-300)' }}>
-                          {getRelativeTime(conv.updatedAt)}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={(e) => handleDelete(e, conv.id)}
-                        aria-label="대화 삭제"
-                        disabled={isDeleting}
-                        className="shrink-0 w-5 h-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 mt-0.5 transition-opacity"
-                        style={{
-                          color: 'var(--neutral-300)',
-                          cursor: isDeleting ? 'not-allowed' : 'pointer',
-                          border: 'none', background: 'transparent',
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.color = 'var(--primary-500)';
-                          e.currentTarget.style.background = 'var(--primary-100)';
-                          e.currentTarget.style.borderRadius = '4px';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.color = 'var(--neutral-300)';
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                })}
               </div>
-            ))
-          )}
-        </div>
+            )}
+            {genSuccessMsg && <p className="text-[12px] font-medium px-1 pb-2" style={{ color: 'var(--primary-600)' }}>✅ 리포트가 생성됐습니다.</p>}
+            {loading ? (
+              <div style={{ padding: '6px 4px' }}><div className="h-3 rounded animate-pulse" style={{ width: '70%', background: 'var(--neutral-100)' }} /></div>
+            ) : reports.length === 0 ? (
+              <p className="text-[12px] text-center py-2" style={{ color: 'var(--neutral-300)' }}>생성된 리포트가 없습니다.</p>
+            ) : (
+              reports.map((item) => {
+                const itemId = String(item.conversationId ?? item.id ?? '');
+                const dateLabel = item.createdAt ? new Date(item.createdAt as string).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : String(item.title ?? '');
+                return (
+                  <div key={itemId} className="flex items-center gap-1 rounded-lg" style={{ padding: '5px 4px' }}>
+                    <span className="text-[12px] text-neutral-600">{dateLabel}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
 
-        {/* ── 하단 프로필 & 설정 ── */}
-        <div style={{
-          flexShrink: 0,
-          padding: '12px',
-          borderTop: '1px solid var(--neutral-100)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px'
-        }}>
-          {/* 설정 버튼 */}
-          <NavItem
-            icon={
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            }
-            label="설정"
-            onClick={() => {}}
-          />
+      {isOpen && <div style={{ flexShrink: 0, height: '1px', background: 'var(--neutral-100)', margin: '0 12px 8px' }} />}
 
-          {/* 프로필 버튼 */}
+      {/* ── 대화 목록 (접혔을 때도 레이아웃 골격을 유지하기 위해 무조건 렌더링하되, 컨텐츠만 숨김) ── */}
+      <div className="flex-1 overflow-y-auto px-2 pb-6">
+        {isOpen && groups.map(({ label, items }) => (
+          <div key={label} className="mb-1 mt-1">
+            <p className="text-[10px] font-semibold tracking-[0.06em] uppercase" style={{ color: 'var(--neutral-300)', padding: '8px 18px 4px' }}>{label}</p>
+            {items.map((conv) => {
+              const active = conv.id === currentConversationId;
+              return (
+                <div key={conv.id} onClick={() => handleSelect(conv.id)} className="group flex items-start gap-1 cursor-pointer rounded-lg mb-px"
+                  style={{ padding: '12px 18px', background: active ? 'var(--primary-50)' : 'transparent', color: active ? 'var(--primary-700)' : 'var(--neutral-500)' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium leading-snug truncate">{conv.title || '새 대화'}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* ── 하단 프로필 & 설정 (항상 바닥에 고정됨) ── */}
+      <div style={{
+        flexShrink: 0,
+        padding: isOpen ? '16px 12px' : '16px 0',
+        borderTop: '1px solid var(--neutral-100)',
+        display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'
+      }}>
+        <NavItem
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          }
+          label="설정" onClick={() => {}} collapsed={!isOpen}
+        />
+
+        <div className="relative group w-full flex justify-center">
           <button
-            className="w-full flex items-center gap-2.5 rounded-lg text-[13px] font-medium mt-1"
-            style={{
-              padding: '8px 12px',
-              background: 'transparent',
-              color: 'var(--neutral-700)',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'background 0.1s',
-            }}
+            className={`flex items-center rounded-lg text-[13px] font-medium transition-colors ${!isOpen ? 'justify-center w-10 h-10 mx-auto' : 'gap-2.5 px-3 py-2 w-full'}`}
+            style={{ background: 'transparent', color: 'var(--neutral-700)', border: 'none', cursor: 'pointer' }}
             onMouseOver={(e) => (e.currentTarget.style.background = 'var(--neutral-100)')}
             onMouseOut={(e)  => (e.currentTarget.style.background = 'transparent')}
           >
@@ -813,11 +493,18 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <span className="flex-1 truncate">내 프로필</span>
+            {isOpen && <span className="flex-1 text-left truncate">내 프로필</span>}
           </button>
+          
+          {/* 하단 프로필 여유롭고 예쁜 툴팁 */}
+          {!isOpen && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 px-4 py-3 bg-[var(--white)] text-[var(--neutral-600)] text-[13px] font-normal leading-relaxed rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[2100] shadow-[var(--shadow-lg)] border border-[var(--border-default)] pointer-events-none whitespace-nowrap">
+              내 프로필
+            </div>
+          )}
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 };
 
