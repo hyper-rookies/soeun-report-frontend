@@ -26,7 +26,7 @@ export interface ChatState {
   setConversation: (conversation: Conversation) => void;
   addMessage: (message: ChatMessage) => void;
   appendToLastMessage: (text: string) => void;
-  setLastMessageData: (data: Record<string, unknown>[]) => void;
+  setLastMessageData: (data: Record<string, unknown>[], chartType?: 'line' | 'bar' | 'pie' | 'table') => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setStreamingComplete: (complete: boolean) => void;
@@ -87,12 +87,16 @@ export const useChatStore = create<ChatState>()(
             return { messages };
           }),
 
-        setLastMessageData: (data) =>
+        setLastMessageData: (data, chartType) =>
           set((state) => {
             const messages = [...state.messages];
             if (messages.length > 0) {
               const last = messages[messages.length - 1];
-              messages[messages.length - 1] = { ...last, data };
+              messages[messages.length - 1] = {
+                ...last,
+                data,
+                ...(chartType && { chartType }),
+              };
             }
             return { messages };
           }),

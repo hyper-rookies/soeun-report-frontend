@@ -1,243 +1,179 @@
-'use client';
-
-import { FC, useState, useMemo } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+  LineChart, Line, BarChart, Bar,
+  PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer
+} from 'recharts'
+
+// 대시보드와 동일한 색상 팔레트
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6']
 
 interface DataRendererProps {
-  data: Record<string, unknown>[];
+  chartType: 'line' | 'bar' | 'pie' | 'table'
+  data: any[]
 }
 
-const CHART_COLORS = ['#ec1d31', '#f87171', '#fca5a5'];
+export default function DataRenderer({ chartType, data }: DataRendererProps) {
+  if (!data || data.length === 0) return null
 
-/** unknown → number 안전 변환 (NaN → 0) */
-const toNumber = (v: unknown): number => {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-};
+  const keys = Object.keys(data[0])
+  const labelKey = keys[0]           // 첫 번째 컬럼 = X축 또는 레이블
+  const valueKeys = keys.slice(1)    // 나머지 = Y축 값들
 
-/** Y축 눈금 축약 포맷 */
-const formatYAxis = (value: unknown): string => {
-  const num = toNumber(value);
-  if (num >= 100_000_000) return `${(num / 100_000_000).toFixed(1)}억`;
-  if (num >= 1_000_000)   return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000)       return `${(num / 1_000).toFixed(1)}K`;
-  return num.toLocaleString('ko-KR');
-};
+  // ── 공통 래퍼 스타일 (대시보드 카드와 동일) ──
+  const wrapperClass = "dashboard-card my-4"
+  const titleClass   = "dashboard-card__title mb-4"
 
-/** YYYY-MM-DD 날짜 패턴 */
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+  // ── 커스텀 Tooltip ──
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null
+    return (
+      <div style={{
+        background: 'white',
+        border: '1px solid #f0f0f0',
+        borderRadius: '12px',
+        padding: '10px 14px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        fontSize: '12px'
+      }}>
+        <p style={{ fontWeight: 700, color: '#374151', marginBottom: 6 }}>{label}</p>
+        {payload.map((p: any, i: number) => (
+          <p key={i} style={{ color: p.color, margin: '2px 0' }}>
+            {p.name}: <strong>{typeof p.value === 'number'
+              ? p.value.toLocaleString() : p.value}</strong>
+          </p>
+        ))}
+      </div>
+    )
+  }
 
-/**
- * 컬럼이 숫자 값인지 판별.
- * - 날짜 형식(YYYY-MM-DD) 포함 시 → false
- * - null/빈값 제외 후 모두 숫자로 파싱 가능 → true
- *   (서버가 숫자를 string으로 내려보내는 경우도 처리)
- */
-function isNumericColumn(col: string, data: Record<string, unknown>[]): boolean {
-  const values = data.map((row) => row[col]);
-  if (values.some((v) => DATE_PATTERN.test(String(v)))) return false;
-  const nonEmpty = values.filter((v) => v !== '' && v !== null && v !== undefined);
-  return nonEmpty.length > 0 && nonEmpty.every((v) => !isNaN(Number(v)));
-}
-
-export const DataRenderer: FC<DataRendererProps> = ({ data }) => {
-  const [sortCol, setSortCol] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-
-  const columns = useMemo(() => (data.length ? Object.keys(data[0]) : []), [data]);
-
-  const { stringCols, numericCols } = useMemo(() => {
-    const stringCols: string[] = [];
-    const numericCols: string[] = [];
-    for (const col of columns) {
-      if (isNumericColumn(col, data)) numericCols.push(col);
-      else stringCols.push(col);
-    }
-    return { stringCols, numericCols };
-  }, [columns, data]);
-
-  // X축: 날짜 컬럼 우선 → 첫 번째 비숫자 컬럼 → fallback
-  const xKey =
-    columns.find((col) => data[0] && DATE_PATTERN.test(String(data[0][col]))) ??
-    stringCols[0] ??
-    columns[0];
-
-  // 숫자 컬럼이 1개 이상이고 데이터가 있으면 항상 차트 표시
-  const chartBarCols = numericCols.filter((c) => c !== xKey);
-  const useChart = chartBarCols.length >= 1 && data.length >= 1;
-
-  /**
-   * 차트에 사용할 컬럼: 최대 2개, 단위 차이 100배 초과이면 첫 번째만.
-   * 표는 항상 함께 표시.
-   */
-  const { colsToChart, showTable } = useMemo(() => {
-    if (!useChart) return { colsToChart: [] as string[], showTable: true };
-
-    // 최대 2개 후보
-    const candidates = chartBarCols.slice(0, 2);
-    if (candidates.length < 2) {
-      return { colsToChart: candidates, showTable: true };
-    }
-    const maxValues = candidates.map((col) =>
-      Math.max(...data.map((r) => toNumber(r[col])))
-    );
-    const minVal = Math.min(...maxValues.filter((v) => v > 0));
-    const ratio = minVal > 0 ? Math.max(...maxValues) / minVal : 1;
-    return {
-      colsToChart: ratio > 100 ? [candidates[0]] : candidates,
-      showTable: true,
-    };
-  }, [useChart, chartBarCols, data]);
-
-  const sortedData = useMemo(() => {
-    if (!sortCol) return data;
-    return [...data].sort((a, b) => {
-      const av = (a[sortCol] as number) ?? 0;
-      const bv = (b[sortCol] as number) ?? 0;
-      return sortDir === 'asc' ? av - bv : bv - av;
-    });
-  }, [data, sortCol, sortDir]);
-
-  const handleSort = (col: string) => {
-    if (!numericCols.includes(col)) return;
-    if (sortCol === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(col);
-      setSortDir('desc');
-    }
-  };
-
-  if (!data.length || !columns.length) return null;
-
-  return (
-    <div className="mt-4 flex flex-col gap-4">
-      {/* ── 바 차트 ── */}
-      {useChart && (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={data}
-            margin={{ top: 10, right: 20, left: 20, bottom: 60 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--neutral-100)" />
-            <XAxis
-              dataKey={xKey}
-              angle={-45}
-              textAnchor="end"
-              interval={0}
-              height={60}
-              tick={{ fontSize: 11, fill: 'var(--neutral-500)' }}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: 'var(--neutral-500)' }}
-              tickFormatter={formatYAxis}
-              width={56}
-            />
-            <Tooltip
-              contentStyle={{
-                background: 'white',
-                border: '1px solid var(--neutral-100)',
-                borderRadius: 8,
-                fontSize: 13,
-              }}
-              formatter={(value: unknown) => [
-                toNumber(value).toLocaleString('ko-KR'),
-                '',
-              ]}
-            />
-            {colsToChart.length > 1 && (
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            )}
-            {colsToChart.map((col, i) => (
-              <Bar
-                key={col}
-                dataKey={col}
-                fill={CHART_COLORS[i % CHART_COLORS.length]}
-                radius={[4, 4, 0, 0]}
-              />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      )}
-
-      {/* ── 정렬 가능 표 ── */}
-      {(!useChart || showTable) && (
-        <div
-          className="overflow-x-auto"
-          style={{ border: '1px solid var(--neutral-100)', borderRadius: 8 }}
-        >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ background: 'var(--neutral-50)' }}>
-                {columns.map((col) => {
-                  const sortable = numericCols.includes(col);
-                  return (
-                    <th
-                      key={col}
-                      className="font-semibold whitespace-nowrap"
-                      style={{
-                        padding: '8px 12px',
-                        textAlign: sortable ? 'right' : 'left',
-                        borderBottom: '2px solid var(--neutral-200)',
-                        color: 'var(--neutral-500)',
-                        fontSize: '12px',
-                        cursor: sortable ? 'pointer' : 'default',
-                        userSelect: 'none',
-                      }}
-                      onClick={() => handleSort(col)}
-                    >
-                      {col}
-                      {sortCol === col && (
-                        <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedData.map((row, i) => (
-                <tr
-                  key={i}
-                  style={{ background: i % 2 === 0 ? 'white' : 'var(--neutral-50)' }}
-                >
-                  {columns.map((col) => {
-                    const numeric = numericCols.includes(col);
-                    const val = row[col];
-                    return (
-                      <td
-                        key={col}
-                        style={{
-                          padding: '8px 12px',
-                          textAlign: numeric ? 'right' : 'left',
-                          borderBottom: '1px solid var(--neutral-100)',
-                          color: 'var(--neutral-600)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {numeric
-                          ? toNumber(val).toLocaleString('ko-KR')
-                          : String(val ?? '')}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+  // ── LINE CHART ──
+  if (chartType === 'line') return (
+    <div className={wrapperClass}>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={data}
+          margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey={labelKey}
+            tick={{ fontSize: 11, fill: '#9ca3af' }}
+            tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }}
+            tickLine={false} axisLine={false} width={40}
+            tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend iconType="circle"
+            wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+          {valueKeys.map((key, i) => (
+            <Line key={key} type="monotone" dataKey={key}
+              stroke={COLORS[i % COLORS.length]}
+              strokeWidth={2.5}
+              dot={{ r: 0 }}
+              activeDot={{ r: 4, strokeWidth: 0 }} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
-  );
-};
+  )
 
-export default DataRenderer;
+  // ── BAR CHART ──
+  if (chartType === 'bar') return (
+    <div className={wrapperClass}>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data}
+          margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey={labelKey}
+            tick={{ fontSize: 11, fill: '#9ca3af' }}
+            tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }}
+            tickLine={false} axisLine={false} width={40}
+            tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend iconType="circle"
+            wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+          {valueKeys.map((key, i) => (
+            <Bar key={key} dataKey={key}
+              fill={COLORS[i % COLORS.length]}
+              radius={[4, 4, 0, 0]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+
+  // ── PIE CHART ──
+  if (chartType === 'pie') {
+    const total = data.reduce((sum, row) => sum + (Number(row[valueKeys[0]]) || 0), 0)
+    return (
+      <div className={wrapperClass}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <ResponsiveContainer width="50%" height={200}>
+            <PieChart>
+              <Pie data={data} dataKey={valueKeys[0]} nameKey={labelKey}
+                outerRadius={80} innerRadius={50}
+                strokeWidth={0} paddingAngle={3}>
+                {data.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* 범례 */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {data.map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: COLORS[i % COLORS.length],
+                    display: 'inline-block', flexShrink: 0
+                  }}/>
+                  <span style={{ fontSize: 12, color: '#4b5563' }}>
+                    {row[labelKey]}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                  {total > 0
+                    ? ((Number(row[valueKeys[0]]) / total) * 100).toFixed(1) + '%'
+                    : '-'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── TABLE ──
+  return (
+    <div className={wrapperClass}>
+      <table className="dashboard-table" style={{ marginBottom: 0 }}>
+        <thead>
+          <tr>
+            {keys.map(k => (
+              <th key={k} style={{ textAlign: k === labelKey ? 'left' : 'right' }}>
+                {k}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i}>
+              {keys.map(k => (
+                <td key={k} style={{ textAlign: k === labelKey ? 'left' : 'right' }}>
+                  {typeof row[k] === 'number' ? row[k].toLocaleString() : row[k]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}

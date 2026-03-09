@@ -4,12 +4,13 @@ import { FC } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType, StreamNode } from '@/types/chat';
-import { DataRenderer } from './DataRenderer';
+import DataRenderer from './DataRenderer';
 
 interface ChatMessageProps {
   message: ChatMessageType;
   isStreaming?: boolean;
   nodes?: StreamNode[];
+  chartPayload?: { chartType: 'line' | 'bar' | 'pie' | 'table'; data: any[] } | null;
 }
 
 // ── 인라인 마크다운: **bold** / `code` ──────────────────────────────────────
@@ -167,7 +168,7 @@ function cleanContent(content: string): string {
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
-export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false, nodes }) => {
+export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false, nodes, chartPayload }) => {
   const isUser = message.role === 'user';
 
   const processedContent = isUser
@@ -287,9 +288,16 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
           )}
         </div>
 
-        {message.data && message.data.length > 0 && (
-          <DataRenderer data={message.data} />
-        )}
+        {(() => {
+          const effective = chartPayload ?? (
+            message.chartType && message.data?.length
+              ? { chartType: message.chartType, data: message.data }
+              : null
+          );
+          return effective && effective.data.length > 0 ? (
+            <DataRenderer chartType={effective.chartType} data={effective.data} />
+          ) : null;
+        })()}
       </div>
     </div>
   );

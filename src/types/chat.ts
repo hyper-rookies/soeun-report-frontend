@@ -6,6 +6,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   data?: Record<string, unknown>[];  // 차트/표 구조 데이터 (SSE "data" 이벤트)
+  chartType?: 'line' | 'bar' | 'pie' | 'table';  // 차트 타입
 }
 
 /**

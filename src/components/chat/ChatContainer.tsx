@@ -23,7 +23,7 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId, presetVa
   const addConversation = useChatStore((s) => s.addConversation);
 
   // 'new' 상태에서는 훅에 빈 문자열 전달 → 유효성 검사 통과 후 targetId로 실제 전송
-  const { sendMessage, nodes, isStreaming } = useSSE(conversationId === 'new' ? '' : conversationId);
+  const { sendMessage, nodes, isStreaming, chartPayload } = useSSE(conversationId === 'new' ? '' : conversationId);
 
   const handleSendMessage = async (message: string) => {
     let targetId = conversationId;
@@ -101,6 +101,7 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId, presetVa
         isNewChat={conversationId === 'new'}
         streamingNodes={nodes}
         isStreamingActive={isStreaming}
+        streamingChartPayload={chartPayload}
       />
 
       {/* 입력 폼 */}

@@ -544,9 +544,9 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                   const title = item.title ? String(item.title) : conversations.find(c => c.id === id)?.title || '주간 리포트';
                   const active = id === currentConversationId;
                   return (
-                    <div 
-                      key={id} 
-                      onClick={() => handleSelect(id)}
+                    <div
+                      key={id}
+                      onClick={() => router.push(`/report/${id}`)}
                       className="group flex items-center gap-2 rounded-lg cursor-pointer transition-colors mx-2"
                       style={{ padding: '8px 10px', background: active ? 'var(--primary-50)' : 'transparent', color: active ? 'var(--primary-700)' : 'var(--neutral-600)', marginBottom: '2px' }}
                       onMouseOver={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--neutral-50)'; }}

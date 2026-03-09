@@ -12,6 +12,7 @@ interface SharedMessage {
   content: string;
   timestamp?: number;
   structuredData?: Record<string, unknown>[];
+  chartType?: 'line' | 'bar' | 'pie' | 'table';
 }
 
 interface SharedConversationRaw {
@@ -66,6 +67,7 @@ export default function SharedPage() {
           content: msg.content,
           timestamp: msg.timestamp ?? 0,
           ...(msg.structuredData?.length ? { data: msg.structuredData } : {}),
+          ...(msg.chartType ? { chartType: msg.chartType } : {}),
         }));
 
         const userId = raw.conversation?.userId ?? raw.userId ?? '';

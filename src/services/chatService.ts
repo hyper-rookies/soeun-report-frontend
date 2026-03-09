@@ -20,7 +20,7 @@ export const chatService = {
     onData: (chunk: string) => void,
     onComplete: () => void,
     onError: (error: string) => void,
-    onStructuredData?: (data: Record<string, unknown>[]) => void
+    onStructuredData?: (payload: { chartType: string; data: Record<string, unknown>[] }) => void
   ): Promise<void> => {
     try {
       const token = getAccessToken();
@@ -82,11 +82,19 @@ export const chatService = {
             if (!data) continue;
 
             if (currentEventType === 'data') {
-              // SSE "data" 이벤트 → JSON 배열 파싱 후 onStructuredData 호출
+              // SSE "data" 이벤트 → { chartType, data[] } 파싱 후 onStructuredData 호출
               try {
                 const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) {
-                  onStructuredData?.(parsed as Record<string, unknown>[]);
+                if (
+                  parsed &&
+                  typeof parsed === 'object' &&
+                  'chartType' in parsed &&
+                  Array.isArray(parsed.data)
+                ) {
+                  onStructuredData?.({
+                    chartType: parsed.chartType as string,
+                    data: parsed.data as Record<string, unknown>[],
+                  });
                 }
               } catch {
                 // 파싱 실패 시 무시

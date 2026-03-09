@@ -12,6 +12,7 @@ interface ChatWindowProps {
   isNewChat?: boolean;
   streamingNodes?: StreamNode[];
   isStreamingActive?: boolean;
+  streamingChartPayload?: { chartType: 'line' | 'bar' | 'pie' | 'table'; data: any[] } | null;
 }
 
 export const ChatWindow: FC<ChatWindowProps> = ({
@@ -21,6 +22,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   isNewChat = false,
   streamingNodes,
   isStreamingActive = false,
+  streamingChartPayload,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,12 +72,16 @@ export const ChatWindow: FC<ChatWindowProps> = ({
           const isStreaming = isLastMessage && (isStreamingActive || (isLoading && !isStreamingComplete));
           const nodes = isLastMessage ? streamingNodes : undefined;
 
+          const chartPayload =
+            isLastMessage && isStreamingActive ? streamingChartPayload : undefined;
+
           return (
             <ChatMessage
               key={`${message.timestamp}-${message.role}-${index}`}
               message={message}
               isStreaming={isStreaming}
               nodes={nodes}
+              chartPayload={chartPayload}
             />
           );
         })}

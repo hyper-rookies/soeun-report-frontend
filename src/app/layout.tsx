@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import './globals.css';
 import Providers from '@/components/Providers';
+import { Sidebar } from '@/components/layout/Sidebar';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,39 +20,42 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={inter.className}>
-        {/* 글로벌 헤더 — fixed 80px */}
-        <header className="cds-header">
-          <div className="flex items-center gap-4">
-            {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40), Next Image 컴포넌트로 변경 */}
-            <Image
-              src="/apple_logo.png"
-              alt="로고"
-              width={40}
-              height={40}
-              priority
-              unoptimized
-              style={{ borderRadius: '8px', objectFit: 'cover' }}
-            />
+        <Providers>
+          {/* 글로벌 헤더 — fixed 80px */}
+          <header className="cds-header">
+            <div className="flex items-center gap-4">
+              {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40), Next Image 컴포넌트로 변경 */}
+              <Image
+                src="/apple_logo.png"
+                alt="로고"
+                width={40}
+                height={40}
+                priority
+                unoptimized
+                style={{ borderRadius: '8px', objectFit: 'cover' }}
+              />
 
-            <div>
-              {/* 타이틀 텍스트도 살짝 키움 */}
-              <h1 className="text-[17px] font-bold leading-tight tracking-[-0.02em]"
-                  style={{ color: 'var(--neutral-700)' }}>
-                광고 AI 리포터
-              </h1>
-              <p className="text-[12px] leading-tight mt-0.5" style={{ color: 'var(--neutral-400)' }}>
-                대시보드를 보지 말고, 대화하세요.
-              </p>
+              <div>
+                {/* 타이틀 텍스트도 살짝 키움 */}
+                <h1 className="text-[17px] font-bold leading-tight tracking-[-0.02em]"
+                    style={{ color: 'var(--neutral-700)' }}>
+                  광고 AI 리포터
+                </h1>
+                <p className="text-[12px] leading-tight mt-0.5" style={{ color: 'var(--neutral-400)' }}>
+                  대시보드를 보지 말고, 대화하세요.
+                </p>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* 헤더가 커졌으므로 paddingTop을 80px로 수정해서 뷰포트를 맞춤 */}
-        <div className="flex flex-col overflow-hidden" style={{ height: '100vh', paddingTop: '80px' }}>
-          <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <Providers>{children}</Providers>
-          </main>
-        </div>
+          {/* 헤더 아래 영역 */}
+          <div style={{ paddingTop: '80px' }} className="flex h-screen overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 flex flex-col overflow-hidden">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

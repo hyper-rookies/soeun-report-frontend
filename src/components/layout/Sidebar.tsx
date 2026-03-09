@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
 import { useChatStore } from '@/store';
 
@@ -9,9 +9,12 @@ import { useChatStore } from '@/store';
  */
 export const Sidebar = () => {
   const router = useRouter();
+  const pathname = usePathname();
   const sidebarOpen      = useChatStore((s) => s.sidebarOpen);
   const setSidebarOpen   = useChatStore((s) => s.setSidebarOpen);
   const conversationId   = useChatStore((s) => s.conversationId);
+
+  if (pathname.startsWith('/auth')) return null;
 
   const handleNewConversation = async () => {
     setSidebarOpen(false);

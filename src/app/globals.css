@@ -637,3 +637,11 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
   flex-shrink: 0;
 }
+
+/* ── Print ──────────────────────────────────────────── */
+@media print {
+  .cds-header, nav, aside { display: none !important; }
+  .print-hide { display: none !important; }
+  @page { margin: 20mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

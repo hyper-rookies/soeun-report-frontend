@@ -20,6 +20,8 @@ function detectNodeType(text: string): StreamNodeType {
 /**
  * SSE 연결 및 메시지 송수신 관리 훅
  */
+type ChartType = 'line' | 'bar' | 'pie' | 'table';
+
 export const useSSE = (conversationId: string) => {
   const store = useChatStore();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -30,6 +32,11 @@ export const useSSE = (conversationId: string) => {
   // 노드 스트리밍 상태
   const [nodes, setNodes] = useState<StreamNode[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chartPayload, setChartPayload] = useState<{
+    chartType: ChartType;
+    data: unknown[];
+  } | null>(null);
+  const chartPayloadRef = useRef<{ chartType: ChartType; data: Record<string, unknown>[] } | null>(null);
   const nodesRef = useRef<StreamNode[]>([]);
   const pendingTextRef = useRef('');   // 마지막 \n\n 이후 아직 완료되지 않은 텍스트
   const nodeCounterRef = useRef(0);
@@ -75,6 +82,8 @@ export const useSSE = (conversationId: string) => {
       isFirstChunkRef.current = true;
       setNodes([]);
       setIsStreaming(false);
+      setChartPayload(null);
+      chartPayloadRef.current = null;
 
       store.setLoading(true);
       store.setError(null);
@@ -166,13 +175,22 @@ export const useSSE = (conversationId: string) => {
 
             updateNodes(currentNodes);
           },
-          // onComplete: 마지막 노드 완료 처리
+          // onComplete: 마지막 노드 완료 처리 + chartPayload store attach
           () => {
             const currentNodes = [...nodesRef.current];
             const last = currentNodes[currentNodes.length - 1];
             if (last && !last.complete) {
               currentNodes[currentNodes.length - 1] = { ...last, complete: true };
               updateNodes(currentNodes);
+            }
+            // chartPayload가 있으면 마지막 메시지에 attach 후 리셋
+            if (chartPayloadRef.current) {
+              store.setLastMessageData(
+                chartPayloadRef.current.data,
+                chartPayloadRef.current.chartType
+              );
+              chartPayloadRef.current = null;
+              setChartPayload(null);
             }
             setIsStreaming(false);
             store.setLoading(false);
@@ -187,9 +205,14 @@ export const useSSE = (conversationId: string) => {
             store.clearMessages();
             messages.forEach((msg) => store.addMessage(msg));
           },
-          // onStructuredData: 차트/표 데이터
-          (data: Record<string, unknown>[]) => {
-            store.setLastMessageData(data);
+          // onStructuredData: 차트/표 데이터 (스트리밍 중 미리 수신)
+          (payload: { chartType: string; data: Record<string, unknown>[] }) => {
+            const typed = {
+              chartType: payload.chartType as ChartType,
+              data: payload.data,
+            };
+            chartPayloadRef.current = typed;
+            setChartPayload(typed);
           }
         );
       } catch (error) {
@@ -209,6 +232,7 @@ export const useSSE = (conversationId: string) => {
     isLoading: store.isLoading,
     isStreaming,
     nodes,
+    chartPayload,
     error: store.error,
     isStreamingComplete: store.isStreamingComplete,
   };
