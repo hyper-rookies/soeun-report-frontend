@@ -152,11 +152,11 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
     const total = data.reduce((sum, row) => sum + (Number(row[valueKeys[0]]) || 0), 0)
     return (
       <div className={wrapperClass}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <ResponsiveContainer width="100%" height={320}>
-            <PieChart margin={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart margin={{ top: 20, bottom: 20, left: 10, right: 10 }}>
               <Pie data={data} dataKey={valueKeys[0]} nameKey={labelKey}
-                outerRadius={120} innerRadius={75}
+                outerRadius={90} innerRadius={60}
                 strokeWidth={0} paddingAngle={3}>
                 {data.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -165,24 +165,19 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
               <Tooltip content={<CustomTooltip />} />
             </PieChart>
           </ResponsiveContainer>
-          {/* 범례 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* 범례: 차트 아래 가로 나열 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 20px', marginTop: 8 }}>
             {data.map((row, i) => (
-              <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    width: 10, height: 10, borderRadius: '50%',
-                    background: COLORS[i % COLORS.length],
-                    display: 'inline-block', flexShrink: 0
-                  }}/>
-                  <span style={{ fontSize: 12, color: '#4b5563' }}>
-                    {row[labelKey]}
-                  </span>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  backgroundColor: COLORS[i % COLORS.length],
+                  display: 'inline-block', flexShrink: 0
+                }} />
+                <span style={{ fontSize: 13, color: '#374151' }}>
+                  {row[labelKey]}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
                   {total > 0
                     ? ((Number(row[valueKeys[0]]) / total) * 100).toFixed(1) + '%'
                     : '-'}
