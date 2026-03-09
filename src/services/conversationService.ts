@@ -93,6 +93,17 @@ export const conversationService = {
   },
 
   /**
+   * 대화 제목 수정
+   */
+  updateTitle: async (id: string, title: string): Promise<void> => {
+    try {
+      await apiClient.patch(API_ENDPOINTS.CONVERSATION.UPDATE_TITLE(id), { title });
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('제목 수정 실패');
+    }
+  },
+
+  /**
    * 대화 삭제
    */
   deleteConversation: async (id: string): Promise<void> => {

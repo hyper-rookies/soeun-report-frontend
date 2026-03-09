@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/conversations',
     CREATE: '/api/conversations',
     GET: (id: string) => `/api/conversations/${id}`,
+    UPDATE_TITLE: (id: string) => `/api/conversations/${id}/title`,
   },
   SHARE: {
     CREATE: (conversationId: string) => `/api/share/${conversationId}`,

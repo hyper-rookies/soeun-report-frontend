@@ -256,6 +256,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const conversations = useChatStore((s) => s.conversations);
   const setConversations = useChatStore((s) => s.setConversations);
   const removeConversation = useChatStore((s) => s.removeConversation);
+  const updateConversationTitle = useChatStore((s) => s.updateConversationTitle);
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
   
   // 🍎 Store UI Actions
@@ -271,8 +272,22 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const fetchCountRef = useRef(0);
   const tokenCacheRef = useRef<Record<string, string>>({});
 
-  const [reportOpen, setReportOpen] = useState(false); 
+  const [reportOpen, setReportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 인라인 제목 편집
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+
+  // 리포트 연/월 필터
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const [filterYear, setFilterYear] = useState(currentYear);
+  const [filterMonth, setFilterMonth] = useState(currentMonth);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerStep, setPickerStep] = useState<'year' | 'month'>('year');
+  const [pickerYear, setPickerYear] = useState(currentYear);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [genStatus, setGenStatus] = useState<GenStatus>('idle');
@@ -358,6 +373,27 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     }
   };
 
+  const startRename = (e: React.MouseEvent, conv: ConversationSummary) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    setEditingId(conv.id);
+    setEditingTitle(conv.title || '새 대화');
+  };
+
+  const commitRename = async (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (!trimmed) { setEditingId(null); return; }
+    setEditingId(null);
+    try {
+      await conversationService.updateTitle(id, trimmed);
+      updateConversationTitle(id, trimmed);
+    } catch (err) {
+      console.error('[Sidebar] 제목 수정 실패:', err);
+    }
+  };
+
+  const cancelRename = () => { setEditingId(null); };
+
   const handleCopyChatLink = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setOpenMenuId(null); 
@@ -416,6 +452,21 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
       setOpenMenuId(id);
     }
   };
+
+  // 리포트 연/월 필터
+  const reportYears = Array.from(new Set([
+    now.getFullYear(),
+    ...reports.map((r) => {
+      const d = r.createdAt ? new Date(String(r.createdAt)) : null;
+      return d && !isNaN(d.getTime()) ? d.getFullYear() : null;
+    }).filter((y): y is number => y !== null),
+  ])).sort((a, b) => b - a);
+
+  const filteredReports = reports.filter((r) => {
+    const d = r.createdAt ? new Date(String(r.createdAt)) : null;
+    if (!d || isNaN(d.getTime())) return false;
+    return d.getFullYear() === filterYear && d.getMonth() + 1 === filterMonth;
+  });
 
   const groups = groupConversations(filteredChats);
   const isGenerating = genStatus === 'running';
@@ -538,12 +589,118 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                 </div>
               )}
               {genSuccessMsg && <p className="text-[12px] font-medium px-2 pb-2" style={{ color: 'var(--primary-600)' }}>✅ 리포트가 생성됐습니다.</p>}
+
+              {/* 월 네비게이터 + 2단계 피커 */}
+              <div style={{ position: 'relative', padding: '0 8px 8px' }}>
+                {/* 네비게이터 바 */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '32px' }}>
+                  <button
+                    onClick={() => {
+                      if (filterMonth === 1) { setFilterYear((y) => y - 1); setFilterMonth(12); }
+                      else setFilterMonth((m) => m - 1);
+                    }}
+                    style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: '6px', color: 'var(--neutral-500)' }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = 'var(--neutral-100)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() => { setPickerOpen((v) => !v); setPickerStep('year'); setPickerYear(filterYear); }}
+                    style={{ fontSize: '13px', fontWeight: 600, color: 'var(--neutral-700)', border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = 'var(--neutral-100)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {filterYear}년 {filterMonth}월
+                  </button>
+
+                  {(() => {
+                    const canGoNext = filterYear < currentYear || (filterYear === currentYear && filterMonth < currentMonth);
+                    return (
+                      <button
+                        onClick={() => {
+                          if (!canGoNext) return;
+                          if (filterMonth === 12) { setFilterYear((y) => y + 1); setFilterMonth(1); }
+                          else setFilterMonth((m) => m + 1);
+                        }}
+                        style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', borderRadius: '6px', color: canGoNext ? 'var(--neutral-500)' : 'var(--neutral-200)', cursor: canGoNext ? 'pointer' : 'default' }}
+                        onMouseOver={(e) => { if (canGoNext) e.currentTarget.style.background = 'var(--neutral-100)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    );
+                  })()}
+                </div>
+
+                {/* 피커 팝업 */}
+                {pickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[190]" onClick={() => setPickerOpen(false)} />
+                    <div style={{ position: 'absolute', top: '36px', left: 0, right: 0, background: 'var(--white)', border: '1px solid var(--neutral-200)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '8px' }}>
+                      {pickerStep === 'year' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {reportYears.map((y) => (
+                            <button
+                              key={y}
+                              onClick={() => { setPickerYear(y); setPickerStep('month'); }}
+                              style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '13px', fontWeight: y === filterYear ? 600 : 400, background: y === filterYear ? 'var(--primary-50)' : 'transparent', color: y === filterYear ? 'var(--primary-700)' : 'var(--neutral-700)' }}
+                              onMouseOver={(e) => { if (y !== filterYear) e.currentTarget.style.background = 'var(--neutral-50)'; }}
+                              onMouseOut={(e) => { if (y !== filterYear) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              {y}년
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => setPickerStep('year')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', marginBottom: '6px', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-600)' }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = 'var(--neutral-100)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            {pickerYear}년
+                          </button>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                              const isDisabled = pickerYear === currentYear && m > currentMonth;
+                              const isSelected = pickerYear === filterYear && m === filterMonth;
+                              return (
+                                <button
+                                  key={m}
+                                  disabled={isDisabled}
+                                  onClick={() => { if (!isDisabled) { setFilterYear(pickerYear); setFilterMonth(m); setPickerOpen(false); } }}
+                                  style={{ padding: '6px 4px', borderRadius: '6px', border: 'none', cursor: isDisabled ? 'default' : 'pointer', fontSize: '12px', fontWeight: isSelected ? 600 : 400, background: isSelected ? 'var(--primary-500)' : 'transparent', color: isDisabled ? 'var(--neutral-200)' : isSelected ? 'white' : 'var(--neutral-700)', transition: 'background 0.1s' }}
+                                  onMouseOver={(e) => { if (!isDisabled && !isSelected) e.currentTarget.style.background = 'var(--neutral-100)'; }}
+                                  onMouseOut={(e) => { if (!isDisabled && !isSelected) e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                  {m}월
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
               {loading ? (
                 <div style={{ padding: '6px 12px' }}><div className="h-3 rounded animate-pulse" style={{ width: '70%', background: 'var(--neutral-100)' }} /></div>
-              ) : reports.length === 0 ? (
-                <p className="text-[12px] text-center py-2" style={{ color: 'var(--neutral-300)' }}>리포트가 없습니다.</p>
+              ) : filteredReports.length === 0 ? (
+                <p className="text-[12px] text-center py-2" style={{ color: 'var(--neutral-300)' }}>해당 기간에 리포트가 없습니다.</p>
               ) : (
-                reports.map((item) => {
+                filteredReports.map((item) => {
                   const id = String(item.id || item.conversationId);
                   const title = item.title ? String(item.title) : conversations.find(c => c.id === id)?.title || '주간 리포트';
                   const active = id === currentConversationId;
@@ -579,14 +736,29 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                 const active = conv.id === currentConversationId;
                 const isMenuOpen = openMenuId === conv.id;
                 return (
-                  <div 
-                    key={conv.id} 
-                    onClick={() => handleSelect(conv.id)} 
-                    className="group flex items-center justify-between cursor-pointer rounded-lg mb-px relative"
-                    style={{ padding: '10px 14px 10px 18px', background: active ? 'var(--primary-50)' : 'transparent', color: active ? 'var(--primary-700)' : 'var(--neutral-500)' }}
+                  <div
+                    key={conv.id}
+                    onClick={() => editingId !== conv.id && handleSelect(conv.id)}
+                    className="group flex items-center justify-between rounded-lg mb-px relative"
+                    style={{ padding: '10px 14px 10px 18px', background: active ? 'var(--primary-50)' : 'transparent', color: active ? 'var(--primary-700)' : 'var(--neutral-500)', cursor: editingId === conv.id ? 'default' : 'pointer' }}
                   >
                     <div className="flex-1 min-w-0 pr-2">
-                      <p className="text-[13px] font-medium leading-snug truncate">{conv.title || '새 대화'}</p>
+                      {editingId === conv.id ? (
+                        <input
+                          autoFocus
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename(conv.id);
+                            else if (e.key === 'Escape') cancelRename();
+                          }}
+                          onBlur={() => commitRename(conv.id)}
+                          style={{ width: '100%', fontSize: '13px', fontWeight: 500, border: '1px solid var(--primary-300)', borderRadius: '4px', outline: 'none', padding: '1px 4px', background: 'transparent', color: 'inherit' }}
+                        />
+                      ) : (
+                        <p className="text-[13px] font-medium leading-snug truncate">{conv.title || '새 대화'}</p>
+                      )}
                     </div>
 
                     <div className="relative flex items-center">
@@ -601,11 +773,23 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                       {isMenuOpen && (
                         <>
                           <div className="fixed inset-0 z-[3000]" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                          <div 
+                          <div
                             className="fixed min-w-[130px] bg-white rounded-xl shadow-[var(--shadow-xl)] border border-[var(--border-default)] z-[3001] flex flex-col overflow-hidden"
                             style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, padding: '8px 0', gap: '2px', animation: 'fadeIn 0.1s ease-out' }}
                           >
-                            <button 
+                            <button
+                              onClick={(e) => startRename(e, conv)}
+                              className="flex items-center w-full transition-colors group"
+                              style={{ padding: '10px 16px', paddingLeft: '20px', gap: '12px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                              onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--neutral-50)'}
+                              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <svg className="w-4 h-4 shrink-0 text-[var(--neutral-400)] group-hover:text-[var(--neutral-700)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--neutral-700)' }}>이름 바꾸기</span>
+                            </button>
+                            <button
                               onClick={(e) => handleCopyChatLink(e, conv.id)}
                               className="flex items-center w-full transition-colors group"
                               style={{ padding: '10px 16px', paddingLeft: '20px', gap: '12px', border: 'none', background: 'transparent', cursor: 'pointer' }}

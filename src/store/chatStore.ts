@@ -37,6 +37,7 @@ export interface ChatState {
   setConversations: (conversations: ConversationSummary[]) => void;
   addConversation: (conversation: ConversationSummary) => void;
   removeConversation: (id: string) => void;
+  updateConversationTitle: (id: string, title: string) => void;
 
   // UI Actions
   setSidebarOpen: (open: boolean) => void;
@@ -130,6 +131,13 @@ export const useChatStore = create<ChatState>()(
         removeConversation: (id) =>
           set((state) => ({
             conversations: state.conversations.filter((c) => c.id !== id),
+          })),
+
+        updateConversationTitle: (id, title) =>
+          set((state) => ({
+            conversations: state.conversations.map((c) =>
+              c.id === id ? { ...c, title } : c
+            ),
           })),
 
         // ── UI Actions ────────────────────────────────────────────────
