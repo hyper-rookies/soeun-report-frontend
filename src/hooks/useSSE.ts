@@ -1,21 +1,7 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { useChatStore } from '@/store';
 import { chatService } from '@/services';
-import { ChatMessage, StreamNode, StreamNodeType } from '@/types/chat';
-
-/**
- * 텍스트 첫 줄을 보고 노드 타입 결정
- */
-function detectNodeType(text: string): StreamNodeType {
-  const t = text.trimStart();
-  const hMatch = t.match(/^(#{1,6})\s/);
-  if (hMatch) return `h${hMatch[1].length}` as StreamNodeType;
-  if (/^[-*]\s/.test(t)) return 'ul';
-  if (/^\d+\.\s/.test(t)) return 'ol';
-  if (/^-{3,}\s*$/.test(t)) return 'hr';
-  if (/^```/.test(t)) return 'code';
-  return 'paragraph';
-}
+import { ChatMessage } from '@/types/chat';
 
 /**
  * SSE 연결 및 메시지 송수신 관리 훅
@@ -29,23 +15,31 @@ export const useSSE = (conversationId: string) => {
   // setLoading만 분리 — store 전체 구독 방지
   const { setLoading } = store;
 
-  // 노드 스트리밍 상태
-  const [nodes, setNodes] = useState<StreamNode[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [chartPayload, setChartPayload] = useState<{
     chartType: ChartType;
     data: unknown[];
   } | null>(null);
   const chartPayloadRef = useRef<{ chartType: ChartType; data: Record<string, unknown>[] } | null>(null);
-  const nodesRef = useRef<StreamNode[]>([]);
-  const pendingTextRef = useRef('');   // 마지막 \n\n 이후 아직 완료되지 않은 텍스트
-  const nodeCounterRef = useRef(0);
+  const rawTextRef = useRef('');           // SSE로 받은 전체 텍스트
+  const displayTextRef = useRef('');       // 화면에 표시 중인 텍스트
+  const [displayText, setDisplayText] = useState('');
+  const typewriterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isDoneRef = useRef(false);
   const isFirstChunkRef = useRef(true);
+  const loadingStartTimeRef = useRef<number>(0);
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MIN_LOADING_MS = 5000; // 최소 로딩 표시 시간
 
   const closeConnection = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+    if (loadingTimerRef.current) {
+      clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = null;
     }
     setLoading(false);
   }, [setLoading]);
@@ -75,15 +69,25 @@ export const useSSE = (conversationId: string) => {
         return;
       }
 
-      // 노드 상태 초기화
-      nodesRef.current = [];
-      pendingTextRef.current = '';
-      nodeCounterRef.current = 0;
+      // 상태 초기화
+      rawTextRef.current = '';
+      displayTextRef.current = '';
+      isDoneRef.current = false;
       isFirstChunkRef.current = true;
-      setNodes([]);
+      if (typewriterTimerRef.current) {
+        clearInterval(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setDisplayText('');
       setIsStreaming(false);
       setChartPayload(null);
       chartPayloadRef.current = null;
+      setStatusMessage(null);
+      loadingStartTimeRef.current = Date.now();
 
       store.setLoading(true);
       store.setError(null);
@@ -103,87 +107,20 @@ export const useSSE = (conversationId: string) => {
       };
       store.addMessage(assistantMsg);
 
-      // 노드 배열을 ref와 state 동시 갱신
-      const updateNodes = (updated: StreamNode[]) => {
-        nodesRef.current = updated;
-        setNodes([...updated]);
-      };
+      // ── 타이머 시작 ──────────────────────────────────────────────────
+      const startTypewriter = () => {
+        if (typewriterTimerRef.current) return;
 
-      try {
-        await chatService.sendMessage(
-          actualId,
-          userMessage,
-          // onData: 청크 수신 → store 누적 + 노드 파싱
-          (chunk: string) => {
-            store.appendToLastMessage(chunk);
+        typewriterTimerRef.current = setInterval(() => {
+          const raw = rawTextRef.current;
+          const displayed = displayTextRef.current;
 
-            // 첫 청크: isLoading → false, isStreaming → true
-            if (isFirstChunkRef.current) {
-              isFirstChunkRef.current = false;
-              store.setLoading(false);
-              setIsStreaming(true);
-            }
-
-            pendingTextRef.current += chunk;
-            const parts = pendingTextRef.current.split('\n\n');
-            pendingTextRef.current = parts.pop()!;
-
-            const currentNodes = [...nodesRef.current];
-
-            // \n\n 이전 세그먼트들 → 완료 노드 처리
-            for (const segment of parts) {
-              if (!segment.trim()) continue;
-              const last = currentNodes[currentNodes.length - 1];
-              if (last && !last.complete) {
-                // 진행 중이던 노드를 최종 내용으로 완료
-                currentNodes[currentNodes.length - 1] = {
-                  ...last,
-                  content: segment,
-                  type: detectNodeType(segment),
-                  complete: true,
-                };
-              } else {
-                nodeCounterRef.current++;
-                currentNodes.push({
-                  id: nodeCounterRef.current,
-                  type: detectNodeType(segment),
-                  content: segment,
-                  complete: true,
-                });
-              }
-            }
-
-            // \n\n 이후 남은 텍스트 → 진행 중 노드 갱신
-            if (pendingTextRef.current) {
-              const last = currentNodes[currentNodes.length - 1];
-              if (last && !last.complete) {
-                currentNodes[currentNodes.length - 1] = {
-                  ...last,
-                  content: pendingTextRef.current,
-                  type: detectNodeType(pendingTextRef.current),
-                };
-              } else {
-                nodeCounterRef.current++;
-                currentNodes.push({
-                  id: nodeCounterRef.current,
-                  type: detectNodeType(pendingTextRef.current),
-                  content: pendingTextRef.current,
-                  complete: false,
-                });
-              }
-            }
-
-            updateNodes(currentNodes);
-          },
-          // onComplete: 마지막 노드 완료 처리 + chartPayload store attach
-          () => {
-            const currentNodes = [...nodesRef.current];
-            const last = currentNodes[currentNodes.length - 1];
-            if (last && !last.complete) {
-              currentNodes[currentNodes.length - 1] = { ...last, complete: true };
-              updateNodes(currentNodes);
-            }
-            // chartPayload가 있으면 마지막 메시지에 attach 후 리셋
+          if (isDoneRef.current) {
+            // done 수신 → 즉시 전체 표시 후 타이머 종료
+            clearInterval(typewriterTimerRef.current!);
+            typewriterTimerRef.current = null;
+            displayTextRef.current = raw;
+            setDisplayText(raw);
             if (chartPayloadRef.current) {
               store.setLastMessageData(
                 chartPayloadRef.current.data,
@@ -195,6 +132,42 @@ export const useSSE = (conversationId: string) => {
             setIsStreaming(false);
             store.setLoading(false);
             store.setStreamingComplete(true);
+            return;
+          }
+
+          if (displayed.length < raw.length) {
+            const next = raw.slice(0, displayed.length + 1);
+            displayTextRef.current = next;
+            setDisplayText(next);
+          }
+        }, 16); // ~60fps
+      };
+
+      try {
+        await chatService.sendMessage(
+          actualId,
+          userMessage,
+          // onData: rawText에 누적 후 타이머 시작
+          (chunk: string) => {
+            store.appendToLastMessage(chunk);
+            rawTextRef.current += chunk;
+
+            if (isFirstChunkRef.current) {
+              isFirstChunkRef.current = false;
+              const elapsed = Date.now() - loadingStartTimeRef.current;
+              const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+              loadingTimerRef.current = setTimeout(() => {
+                store.setLoading(false);
+                setIsStreaming(true);
+                setStatusMessage(null);
+              }, remaining);
+            }
+
+            startTypewriter();
+          },
+          // onComplete: 플래그 세팅 (타이머가 완료 처리)
+          () => {
+            isDoneRef.current = true;
           },
           // onError: 에러 처리
           (error: string) => {
@@ -213,6 +186,10 @@ export const useSSE = (conversationId: string) => {
             };
             chartPayloadRef.current = typed;
             setChartPayload(typed);
+          },
+          // onStatus
+          (step: string, message: string) => {
+            setStatusMessage(message);
           }
         );
       } catch (error) {
@@ -231,8 +208,9 @@ export const useSSE = (conversationId: string) => {
     closeConnection,
     isLoading: store.isLoading,
     isStreaming,
-    nodes,
+    displayText,
     chartPayload,
+    statusMessage,
     error: store.error,
     isStreamingComplete: store.isStreamingComplete,
   };

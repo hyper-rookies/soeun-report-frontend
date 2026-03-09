@@ -14,6 +14,34 @@ export const clearAccessToken = (): void => {
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
 };
 
+export const clearTokens = (): void => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
+};
+
+let _refreshingPromise: Promise<string> | null = null;
+
+export const refreshTokenOnce = (): Promise<string> => {
+  if (_refreshingPromise) return _refreshingPromise;
+  _refreshingPromise = (async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) throw new Error('no refresh token');
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) throw new Error('refresh failed');
+    const data = await res.json();
+    const newToken: string = data.data.accessToken;
+    setAccessToken(newToken);
+    return newToken;
+  })().finally(() => { _refreshingPromise = null; });
+  return _refreshingPromise;
+};
+
 export const isLoggedIn = (): boolean => !!getAccessToken();
 
 export const getUserNameFromToken = (): string => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, useEffect, useRef } from 'react';
-import { ChatMessage as ChatMessageType, StreamNode } from '@/types/chat';
+import { ChatMessage as ChatMessageType } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import Image from 'next/image';
 
@@ -10,9 +10,10 @@ interface ChatWindowProps {
   isLoading: boolean;
   isStreamingComplete: boolean;
   isNewChat?: boolean;
-  streamingNodes?: StreamNode[];
+  streamingDisplayText?: string;
   isStreamingActive?: boolean;
   streamingChartPayload?: { chartType: 'line' | 'bar' | 'pie' | 'table'; data: any[] } | null;
+  statusMessage?: string | null;
 }
 
 export const ChatWindow: FC<ChatWindowProps> = ({
@@ -20,9 +21,10 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   isLoading,
   isStreamingComplete,
   isNewChat = false,
-  streamingNodes,
+  streamingDisplayText,
   isStreamingActive = false,
   streamingChartPayload,
+  statusMessage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +36,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   const showLoadingDots = isLoading;
 
   const displayMessages =
-    isLoading && lastMsg?.role === 'assistant' && lastMsg?.content === ''
+    isLoading && !isStreamingActive && lastMsg?.role === 'assistant' && lastMsg?.content === ''
       ? messages.slice(0, -1)
       : messages;
 
@@ -43,6 +45,13 @@ export const ChatWindow: FC<ChatWindowProps> = ({
   }
 
   return (
+    <>
+    <style>{`
+      @keyframes fadeInStatus {
+        from { opacity: 0; transform: translateY(3px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
     <div
       className="flex-1"
       style={{
@@ -70,7 +79,7 @@ export const ChatWindow: FC<ChatWindowProps> = ({
         {displayMessages.map((message, index) => {
           const isLastMessage = index === displayMessages.length - 1;
           const isStreaming = isLastMessage && (isStreamingActive || (isLoading && !isStreamingComplete));
-          const nodes = isLastMessage ? streamingNodes : undefined;
+          const streamingText = isLastMessage && streamingDisplayText ? streamingDisplayText : undefined;
 
           const chartPayload =
             isLastMessage && isStreamingActive ? streamingChartPayload : undefined;
@@ -80,13 +89,13 @@ export const ChatWindow: FC<ChatWindowProps> = ({
               key={`${message.timestamp}-${message.role}-${index}`}
               message={message}
               isStreaming={isStreaming}
-              nodes={nodes}
+              streamingDisplayText={streamingText}
               chartPayload={chartPayload}
             />
           );
         })}
 
-        {/* 바운싱 점 — 첫 청크 도착 전 */}
+        {/* 로딩 상태 — 첫 청크 도착 전 */}
         {showLoadingDots && (
           <div className="flex w-full justify-start gap-4" style={{ marginTop: '-8px' }}>
             <Image
@@ -97,25 +106,30 @@ export const ChatWindow: FC<ChatWindowProps> = ({
               priority
               unoptimized
               className="rounded-full shrink-0 mt-0.5"
-              style={{
-                boxShadow: 'var(--shadow-sm)',
-                objectFit: 'cover'
-              }}
+              style={{ boxShadow: 'var(--shadow-sm)', objectFit: 'cover' }}
             />
-            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--neutral-400)' }}>
-              <div className="flex gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '300ms' }} />
+            {!isStreamingActive && (
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--neutral-400)' }}>
+                <div className="flex gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '300ms' }} />
+                </div>
+                <span
+                  key={statusMessage ?? 'default'}
+                  style={{ animation: 'fadeInStatus 0.3s ease-out' }}
+                >
+                  {statusMessage ?? '분석 중...'}
+                </span>
               </div>
-              <span>분석 중...</span>
-            </div>
+            )}
           </div>
         )}
 
         <div ref={messagesEndRef} className="h-2" />
       </div>
     </div>
+    </>
   );
 };
 

@@ -1,5 +1,5 @@
 import { API_CONFIG, API_ENDPOINTS, ERROR_MESSAGES } from '@/utils/constants';
-import { getAccessToken } from '@/lib/auth';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
  * Chat 서비스 - SSE 스트리밍
@@ -20,20 +20,15 @@ export const chatService = {
     onData: (chunk: string) => void,
     onComplete: () => void,
     onError: (error: string) => void,
-    onStructuredData?: (payload: { chartType: string; data: Record<string, unknown>[] }) => void
+    onStructuredData?: (payload: { chartType: string; data: Record<string, unknown>[] }) => void,
+    onStatus?: (step: string, message: string) => void
   ): Promise<void> => {
     try {
-      const token = getAccessToken();
-
-      // SSE fetch 요청
-      const response = await fetch(
+      // SSE fetch 요청 (401 시 토큰 리프레시 후 재시도)
+      const response = await fetchWithAuth(
         `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHAT.SEND(conversationId)}`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
           body: JSON.stringify({ message }),
         }
       );
@@ -59,21 +54,9 @@ export const chatService = {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
-          // 빈 줄 = SSE 이벤트 구분자 → event type 초기화
-          if (line === '') {
-            currentEventType = '';
-            continue;
-          }
-
+          // event: 라인 → 무조건 타입 갱신 (빈 줄 없이 연속으로 와도 처리)
           if (line.startsWith('event:')) {
             currentEventType = line.substring(6).trim();
-            if (currentEventType === 'done') {
-              onComplete();
-              return;
-            } else if (currentEventType === 'error') {
-              onError(ERROR_MESSAGES.SERVER_ERROR);
-              return;
-            }
             continue;
           }
 
@@ -81,29 +64,51 @@ export const chatService = {
             const data = line.substring(5).trim();
             if (!data) continue;
 
-            if (currentEventType === 'data') {
-              // SSE "data" 이벤트 → { chartType, data[] } 파싱 후 onStructuredData 호출
-              try {
-                const parsed = JSON.parse(data);
-                if (
-                  parsed &&
-                  typeof parsed === 'object' &&
-                  'chartType' in parsed &&
-                  Array.isArray(parsed.data)
-                ) {
-                  onStructuredData?.({
-                    chartType: parsed.chartType as string,
-                    data: parsed.data as Record<string, unknown>[],
-                  });
-                }
-              } catch {
-                // 파싱 실패 시 무시
-              }
-            } else {
-              // SSE "message" 이벤트 → 텍스트 청크 append
-              onData(data);
+            switch (currentEventType) {
+              case 'done':
+                onComplete();
+                return;
+
+              case 'error':
+                onError(ERROR_MESSAGES.SERVER_ERROR);
+                return;
+
+              case 'status':
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed?.step && parsed?.message) {
+                    onStatus?.(parsed.step, parsed.message);
+                  }
+                } catch { /* 무시 */ }
+                break;
+
+              case 'data':
+                try {
+                  const parsed = JSON.parse(data);
+                  if (
+                    parsed &&
+                    typeof parsed === 'object' &&
+                    'chartType' in parsed &&
+                    Array.isArray(parsed.data)
+                  ) {
+                    onStructuredData?.({
+                      chartType: parsed.chartType as string,
+                      data: parsed.data as Record<string, unknown>[],
+                    });
+                  }
+                } catch { /* 무시 */ }
+                break;
+
+              default:
+                // request_type: 으로 시작하는 내부 분류 텍스트 필터링
+                if (data.startsWith('request_type:')) break;
+                // 'message' 또는 타입 없음 → 텍스트 청크
+                onData(data);
+                break;
             }
           }
+
+          // 빈 줄은 무시 (event: 라인에서 이미 타입 갱신하므로 리셋 불필요)
         }
       }
 

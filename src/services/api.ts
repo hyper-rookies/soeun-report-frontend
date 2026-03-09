@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from '@/utils/constants';
 import { ApiError } from '@/types';
-import { getAccessToken, clearAccessToken } from '@/lib/auth';
+import { getAccessToken, clearTokens, refreshTokenOnce } from '@/lib/auth';
 
 /**
  * Axios 인스턴스 생성
@@ -33,15 +33,27 @@ apiClient.interceptors.request.use(
 
 /**
  * 응답 인터셉터
- * - 에러 처리 (401: 토큰 만료 등)
+ * - 401 → 리프레시 토큰으로 자동 재발급, 실패 시 로그인 이동
  */
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiError>) => {
-    if (error.response?.status === 401 && window.location.pathname !== '/auth') {
-      // 토큰 만료 → 재로그인 필요
-      clearAccessToken();
-      window.location.href = '/auth';
+  async (error: AxiosError<ApiError>) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/auth/login'
+    ) {
+      originalRequest._retry = true;
+      try {
+        const newToken = await refreshTokenOnce();
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+        return apiClient(originalRequest);
+      } catch {
+        clearTokens();
+        window.location.href = '/auth/login';
+      }
     }
     return Promise.reject(error);
   }

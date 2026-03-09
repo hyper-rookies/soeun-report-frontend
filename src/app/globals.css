@@ -237,6 +237,7 @@ body {
   min-height: 100vh;
   background-color: var(--neutral-50);
   padding: var(--space-2xl);          /* 32px */
+  overflow-x: auto;
 }
 
 .dashboard-inner {
@@ -481,6 +482,25 @@ body {
   display: grid;
   grid-template-columns: 5fr 8fr;
   gap: var(--space-lg);
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .dashboard-grid-2,
+  .dashboard-grid-2-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-page {
+    padding: var(--space-lg);
+  }
+  .dashboard-grid-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* 카드 */

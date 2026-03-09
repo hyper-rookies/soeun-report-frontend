@@ -4,7 +4,7 @@ import { FC, useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { conversationService } from '@/services';
 import apiClient from '@/lib/axiosInstance';
-import { getAccessToken } from '@/lib/auth';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useChatStore } from '@/store';
 import { ConversationSummary } from '@/types/chat';
 import { API_ENDPOINTS } from '@/utils/constants';
@@ -283,9 +283,10 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
   const genStartRef = useRef(0);
   const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
   const fetchReports = async () => {
-    const token = getAccessToken();
-    const res = await fetch(`/api/chat/reports`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetchWithAuth('/api/chat/reports');
     const data = await res.json();
     return (data.data || []) as Record<string, unknown>[];
   };
@@ -334,6 +335,13 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     return tok;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    router.push('/auth/login');
+  };
+
   const handleNew = async () => { await onNewConversation(); };
   const handleSelect = (id: string) => { router.push(`/chat/${id}`); };
 
@@ -374,11 +382,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     setGenSuccessMsg(false);
 
     try {
-      const token = getAccessToken();
-      const res = await fetch('/api/report/generate', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetchWithAuth('/api/report/generate', { method: 'POST' });
       const data = await res.json();
 
       if (!res.ok || data.success === false) {
@@ -643,10 +647,47 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
             icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             label="설정" onClick={() => {}} collapsed={!isOpen}
           />
-          <NavItem
-            icon={<div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'var(--primary-100)', color: 'var(--primary-700)' }}><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div>}
-            label="내 프로필" onClick={() => {}} collapsed={!isOpen}
-          />
+          {/* 내 프로필 + 로그아웃 드롭업 */}
+          <div className="relative w-full flex justify-center">
+            {profileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-[3000]" onClick={() => setProfileMenuOpen(false)} />
+                <div
+                  className="absolute bottom-full mb-2 bg-white rounded-xl border border-[var(--border-default)] z-[3001] overflow-hidden"
+                  style={{ left: isOpen ? 0 : '50%', transform: isOpen ? 'none' : 'translateX(-50%)', minWidth: '140px', boxShadow: 'var(--shadow-xl)' }}
+                >
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center w-full transition-colors"
+                    style={{ padding: '10px 16px', gap: '10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--primary-600)', whiteSpace: 'nowrap' }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-50)'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    로그아웃
+                  </button>
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              className={`flex items-center rounded-lg text-[13px] font-medium transition-colors h-10 ${!isOpen ? 'justify-center w-10 mx-auto' : 'px-3 w-full gap-2.5'}`}
+              style={{ background: profileMenuOpen ? 'var(--neutral-100)' : 'transparent', color: 'var(--neutral-600)', border: 'none', cursor: 'pointer' }}
+              onMouseOver={(e) => { if (!profileMenuOpen) e.currentTarget.style.background = 'var(--neutral-50)'; }}
+              onMouseOut={(e) => { if (!profileMenuOpen) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span className="shrink-0 flex items-center justify-center w-5 h-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'var(--primary-100)', color: 'var(--primary-700)' }}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+              </span>
+              {isOpen && <span className="flex-1 text-left truncate">내 프로필</span>}
+            </button>
+          </div>
         </div>
       </aside>
 
