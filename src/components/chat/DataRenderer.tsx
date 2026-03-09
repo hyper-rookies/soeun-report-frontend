@@ -1,5 +1,6 @@
 import {
   LineChart, Line, BarChart, Bar,
+  ComposedChart,
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
@@ -76,30 +77,75 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
   )
 
   // ── BAR CHART ──
-  if (chartType === 'bar') return (
-    <div className={wrapperClass}>
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={data}
-          margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-          <XAxis dataKey={labelKey}
-            tick={{ fontSize: 11, fill: '#9ca3af' }}
-            tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }}
-            tickLine={false} axisLine={false} width={40}
-            tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend iconType="circle"
-            wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-          {valueKeys.map((key, i) => (
-            <Bar key={key} dataKey={key}
-              fill={COLORS[i % COLORS.length]}
-              radius={[4, 4, 0, 0]} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  )
+  if (chartType === 'bar') {
+    const barKeys = valueKeys.filter((k) => k !== '구글 광고비(원)')
+    const hasCostKey = barKeys.some((k) => k.includes('광고비'))
+    const hasClickKey = barKeys.some((k) => k.includes('클릭'))
+    const dualAxis = hasCostKey && hasClickKey
+
+    if (dualAxis) return (
+      <div className={wrapperClass}>
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={data}
+            margin={{ top: 4, right: 48, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+            <XAxis dataKey={labelKey}
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tickLine={false} axisLine={false} />
+            <YAxis yAxisId="left" orientation="left"
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tickLine={false} axisLine={false} width={56}
+              tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
+            <YAxis yAxisId="right" orientation="right"
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tickLine={false} axisLine={false} width={40}
+              tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend iconType="circle"
+              wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+            {barKeys.map((key, i) =>
+              key.includes('클릭') ? (
+                <Line key={key} type="monotone" dataKey={key} yAxisId="right"
+                  stroke={COLORS[i % COLORS.length]}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: COLORS[i % COLORS.length] }}
+                  activeDot={{ r: 5, strokeWidth: 0 }} />
+              ) : (
+                <Bar key={key} dataKey={key} yAxisId="left"
+                  fill={COLORS[i % COLORS.length]}
+                  radius={[4, 4, 0, 0]} />
+              )
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    )
+
+    return (
+      <div className={wrapperClass}>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={data}
+            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+            <XAxis dataKey={labelKey}
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tickLine={false} axisLine={false} width={40}
+              tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend iconType="circle"
+              wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+            {barKeys.map((key, i) => (
+              <Bar key={key} dataKey={key}
+                fill={COLORS[i % COLORS.length]}
+                radius={[4, 4, 0, 0]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
 
   // ── PIE CHART ──
   if (chartType === 'pie') {
@@ -107,10 +153,10 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
     return (
       <div className={wrapperClass}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <ResponsiveContainer width="50%" height={200}>
-            <PieChart>
+          <ResponsiveContainer width="100%" height={320}>
+            <PieChart margin={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Pie data={data} dataKey={valueKeys[0]} nameKey={labelKey}
-                outerRadius={80} innerRadius={50}
+                outerRadius={120} innerRadius={75}
                 strokeWidth={0} paddingAngle={3}>
                 {data.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -156,7 +202,10 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
         <thead>
           <tr>
             {keys.map(k => (
-              <th key={k} style={{ textAlign: k === labelKey ? 'left' : 'right' }}>
+              <th key={k} style={{
+                textAlign: k === labelKey ? 'left' : 'right',
+                ...(k === '구글 광고비(원)' ? { color: '#9ca3af' } : {}),
+              }}>
                 {k}
               </th>
             ))}
@@ -166,7 +215,10 @@ export default function DataRenderer({ chartType, data }: DataRendererProps) {
           {data.map((row, i) => (
             <tr key={i}>
               {keys.map(k => (
-                <td key={k} style={{ textAlign: k === labelKey ? 'left' : 'right' }}>
+                <td key={k} style={{
+                  textAlign: k === labelKey ? 'left' : 'right',
+                  ...(k === '구글 광고비(원)' ? { color: '#9ca3af' } : {}),
+                }}>
                   {typeof row[k] === 'number' ? row[k].toLocaleString() : row[k]}
                 </td>
               ))}

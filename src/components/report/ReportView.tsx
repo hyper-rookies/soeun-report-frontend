@@ -1,16 +1,32 @@
 'use client';
 
-import { FC, useState } from 'react';
+import { FC, ReactNode, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DataRenderer from '@/components/chat/DataRenderer';
 import { ChatMessage } from '@/types/chat';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface ReportViewProps {
   messages: ChatMessage[];
   title: string;
+  conversationId?: string;
   expiresAt?: string;
   createdAt?: string;
+}
+
+const getReportTitle = (title: string, conversationId: string): string => {
+  if (title && title !== '주간 광고 성과 리포트' && !title.startsWith('New')) {
+    return title
+  }
+  const match = conversationId.match(/report_(\d{4})(\d{2})(\d{2})/)
+  if (!match) return title
+  const year = parseInt(match[1])
+  const month = parseInt(match[2])
+  const day = parseInt(match[3])
+  const weekOfMonth = Math.ceil(day / 7)
+  return `${year}년 ${month}월 ${weekOfMonth}주차 주간 리포트`
 }
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -86,6 +102,65 @@ function extractKpi(allData: Record<string, unknown>[]): KpiData {
   return { impressions, clicks, conversions, totalCost, roas, hasGoogle, hasKakao };
 }
 
+interface TableKpiData {
+  totalImpressions: number;
+  totalClicks: number;
+  kakaoCost: number;
+  googleCost: number;
+  ctr: number;
+  googleClickRatio: number;
+}
+
+function extractTableKpi(tableData: Record<string, unknown>[]): TableKpiData {
+  let googleImpressions = 0, kakaoImpressions = 0;
+  let googleClicks = 0, kakaoClicks = 0;
+  let kakaoCost = 0, googleCost = 0;
+
+  for (const row of tableData) {
+    const hasPlatformPrefix = Object.keys(row).some((k) => {
+      const lk = k.toLowerCase();
+      return lk.includes('google') || lk.includes('구글') || lk.includes('kakao') || lk.includes('카카오');
+    });
+
+    if (hasPlatformPrefix) {
+      for (const [key, val] of Object.entries(row)) {
+        const lk = key.toLowerCase();
+        if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('impression') || lk.includes('노출'))) {
+          googleImpressions += toNum(val);
+        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('impression') || lk.includes('노출'))) {
+          kakaoImpressions += toNum(val);
+        } else if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('click') || lk.includes('클릭'))) {
+          googleClicks += toNum(val);
+        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('click') || lk.includes('클릭'))) {
+          kakaoClicks += toNum(val);
+        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('cost') || lk.includes('광고비') || lk.includes('spend'))) {
+          kakaoCost += toNum(val);
+        } else if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('cost') || lk.includes('광고비'))) {
+          googleCost += toNum(val) / (lk.includes('micro') ? 1_000_000 : 1);
+        }
+      }
+    } else {
+      if ('cost_micros' in row) {
+        googleImpressions += toNum(row.impressions ?? 0);
+        googleClicks += toNum(row.clicks ?? row.click ?? 0);
+        googleCost += toNum(row.cost_micros) / 1_000_000;
+      } else if ('spending' in row) {
+        kakaoImpressions += toNum(row.impressions ?? row.impression ?? 0);
+        kakaoClicks += toNum(row.clicks ?? row.click ?? 0);
+        kakaoCost += toNum(row.spending);
+      }
+    }
+  }
+
+  const totalImpressions = googleImpressions + kakaoImpressions;
+  const totalClicks = googleClicks + kakaoClicks;
+  const totalCost = googleCost + kakaoCost;
+  const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+  const googleClickRatio = totalClicks > 0 ? (googleClicks / totalClicks) * 100 : 0;
+
+  return { totalImpressions, totalClicks, kakaoCost, googleCost, ctr, googleClickRatio };
+}
+
 function extractDateRange(allData: Record<string, unknown>[]): { start: string; end: string } | null {
   const dates: string[] = [];
   for (const row of allData) {
@@ -130,7 +205,7 @@ function parseInsightSections(text: string): InsightSection[] {
   for (const line of lines) {
     const match = line.match(/^#{1,3}\s+(.+)/);
     if (match) {
-      const title = match[1].replace(/^\d+\.\s*/, '').trim();
+      const title = match[1].replace(/^\d+\.\s*/, '').replace(/[\u{1F300}-\u{1FFFF}]|[\u2600-\u27FF]/gu, '').trim();
       if (TARGET_TITLES.some((t) => title.includes(t))) {
         if (current) sections.push(current);
         current = { title, content: '' };
@@ -149,6 +224,13 @@ const SECTION_ICONS: Record<string, string> = {
   '개선 제안': '🎯',
 };
 
+const CHART_TITLES: Record<string, string> = {
+  pie: '매체별 광고비 비중',
+  line: '일별 광고비 추이',
+  bar: '구글 캠페인별 성과 TOP',
+  table: '일별 상세 지표',
+};
+
 function getSectionIcon(title: string) {
   return Object.entries(SECTION_ICONS).find(([k]) => title.includes(k))?.[1] ?? '📋';
 }
@@ -156,11 +238,11 @@ function getSectionIcon(title: string) {
 interface KpiCardProps {
   label: string;
   value: string;
-  unit: string;
-  accentColor: string;
+  unit?: string;
+  icon: ReactNode;
 }
 
-function KpiCard({ label, value, unit, accentColor }: KpiCardProps) {
+function KpiCard({ label, value, unit, icon }: KpiCardProps) {
   return (
     <div
       style={{
@@ -168,35 +250,95 @@ function KpiCard({ label, value, unit, accentColor }: KpiCardProps) {
         border: '1px solid var(--neutral-100)',
         borderRadius: '12px',
         padding: '16px 20px',
-        borderTop: `3px solid ${accentColor}`,
+        boxShadow: 'var(--shadow-xs)',
       }}
     >
-      <p className="text-[11px] font-medium mb-2" style={{ color: 'var(--neutral-400)' }}>
-        {label}
-      </p>
-      <p className="text-[20px] font-bold leading-none" style={{ color: 'var(--neutral-700)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+        <span style={{ color: 'var(--neutral-400)', display: 'flex' }}>{icon}</span>
+        <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-400)' }}>{label}</p>
+      </div>
+      <p style={{ fontSize: '22px', fontWeight: 700, color: 'var(--neutral-700)', lineHeight: 1 }}>
         {value}
       </p>
       {unit && (
-        <p className="text-[11px] mt-1" style={{ color: 'var(--neutral-400)' }}>
-          {unit}
-        </p>
+        <p style={{ fontSize: '11px', color: 'var(--neutral-400)', marginTop: '4px' }}>{unit}</p>
       )}
     </div>
   );
 }
 
-export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, createdAt }) => {
+export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationId = '', expiresAt, createdAt }) => {
+  const reportTitle = getReportTitle(title, conversationId)
   const [insightOpen, setInsightOpen] = useState(false);
+
+  const handlePdfSave = async () => {
+    const el = document.getElementById('report-content');
+    if (!el) return;
+
+    const btn = document.getElementById('pdf-save-btn');
+    if (btn) btn.style.display = 'none';
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#f9fafb',
+      windowWidth: 1200,
+      ignoreElements: (element) => {
+        return element.tagName === 'FOREIGNOBJECT'
+      },
+      onclone: (clonedDoc) => {
+        const allElements = clonedDoc.querySelectorAll('*')
+        allElements.forEach((el) => {
+          const style = (el as HTMLElement).style
+          if (style.color?.includes('oklch') || style.color?.includes('lab')) {
+            style.color = '#1f2937'
+          }
+          if (style.backgroundColor?.includes('oklch') || style.backgroundColor?.includes('lab')) {
+            style.backgroundColor = '#ffffff'
+          }
+        })
+      },
+    });
+
+    if (btn) btn.style.display = '';
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`주간리포트_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '').replace(/ /g, '')}.pdf`);
+  };
 
   const allData = messages.flatMap((m) => m.data ?? []);
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   const chartMessages = messages.filter(
-    (m) => m.role === 'assistant' && m.data && m.data.length > 0 && m.chartType,
+    (m) => m.role === 'assistant' && m.data && m.data.length > 0,
   );
 
   const kpi = allData.length > 0 ? extractKpi(allData) : null;
   const dateRange = allData.length > 0 ? extractDateRange(allData) : null;
+  const tableMessage = messages.find((m) => m.chartType === 'table' && m.data && m.data.length > 0);
+  const tableKpi = tableMessage ? extractTableKpi(tableMessage.data as Record<string, unknown>[]) : null;
 
   const analysisContent = lastAssistant
     ? stripIntroLine(normalizeMarkdown(lastAssistant.content))
@@ -205,7 +347,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
   const insightSections = analysisContent ? parseInsightSections(analysisContent) : [];
 
   return (
-    <div className="min-h-full print:bg-white" style={{ background: 'var(--neutral-50)' }}>
+    <div id="report-content" className="min-h-full bg-gray-50 print:bg-white">
       {/* ── 헤더 ── */}
       <div
         className="print:shadow-none"
@@ -246,7 +388,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
 
               {/* 제목 */}
               <h1 className="text-[22px] font-bold mb-1" style={{ color: 'var(--neutral-700)' }}>
-                주간 광고 성과 리포트
+                {reportTitle}
               </h1>
 
               {dateRange && (
@@ -274,7 +416,8 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
                 )}
               </div>
               <button
-                onClick={() => window.print()}
+                id="pdf-save-btn"
+                onClick={handlePdfSave}
                 className="print-hide"
                 style={{
                   background: 'var(--primary-500)',
@@ -309,39 +452,39 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 32px 64px' }}>
 
         {/* KPI 카드 섹션 */}
-        {kpi && (kpi.hasGoogle || kpi.hasKakao) && (
-          <section className="mb-8 print:mb-6">
+        {tableKpi && (
+          <section className="mb-10 print:mb-8">
             <SectionLabel>핵심 지표</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
               <KpiCard
                 label="총 노출수"
-                value={formatNum(kpi.impressions)}
+                value={formatNum(tableKpi.totalImpressions)}
                 unit="회"
-                accentColor="var(--neutral-400)"
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
               />
               <KpiCard
                 label="총 클릭수"
-                value={formatNum(kpi.clicks)}
+                value={formatNum(tableKpi.totalClicks)}
                 unit="클릭"
-                accentColor="var(--primary-500)"
-              />
-              <KpiCard
-                label="총 전환수"
-                value={formatNum(kpi.conversions)}
-                unit="건"
-                accentColor="#10b981"
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 3l14 9-7 1-4 6z"/></svg>}
               />
               <KpiCard
                 label="총 광고비"
-                value={formatKRW(kpi.totalCost)}
-                unit=""
-                accentColor="#f59e0b"
+                value={formatKRW(tableKpi.kakaoCost + tableKpi.googleCost)}
+                unit="구글+카카오"
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1M12 7v2m0 6v2"/></svg>}
               />
               <KpiCard
-                label="ROAS"
-                value={kpi.roas ? kpi.roas.toFixed(1) + '%' : '-'}
-                unit={kpi.roas ? '수익률' : '데이터 없음'}
-                accentColor="#8b5cf6"
+                label="평균 CTR"
+                value={tableKpi.ctr.toFixed(2) + '%'}
+                unit="클릭률"
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>}
+              />
+              <KpiCard
+                label="구글 클릭 비중"
+                value={tableKpi.googleClickRatio.toFixed(1) + '%'}
+                unit="전체 클릭 중"
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>}
               />
             </div>
           </section>
@@ -349,26 +492,37 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
 
         {/* 차트 섹션 */}
         {chartMessages.length > 0 && (
-          <section className="mb-8 print:mb-6">
+          <section className="mb-10 print:mb-8">
             <SectionLabel>데이터 차트</SectionLabel>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
               {chartMessages.map((msg, i) => {
-                const isWide =
-                  msg.chartType === 'line' ||
-                  msg.chartType === 'bar' ||
-                  msg.chartType === 'table';
+                const chartType = msg.chartType ?? 'table';
+                const colSpan = chartType === 'pie' ? 1 : chartType === 'line' ? 2 : 3;
+                const chartTitle = CHART_TITLES[chartType] ?? '';
                 return (
                   <div
                     key={i}
                     style={{
-                      gridColumn: isWide ? 'span 2' : 'span 1',
+                      gridColumn: `span ${colSpan}`,
                       background: 'white',
                       border: '1px solid var(--neutral-100)',
                       borderRadius: '12px',
                       padding: '20px',
                     }}
                   >
-                    <DataRenderer data={msg.data!} chartType={msg.chartType!} />
+                    {chartTitle && (
+                      <h3
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: 'var(--neutral-600)',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        {chartTitle}
+                      </h3>
+                    )}
+                    <DataRenderer data={msg.data!} chartType={chartType} />
                   </div>
                 );
               })}
@@ -378,56 +532,109 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
 
         {/* AI 분석 섹션 */}
         {analysisContent && (
-          <section className="mb-8 print:mb-6">
+          <section className="mb-8 print:mb-6 mt-10">
             <SectionLabel>AI 분석</SectionLabel>
             {insightSections.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                {insightSections.map((sec, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      background: 'white',
-                      border: '1px solid var(--neutral-100)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                    }}
-                  >
-                    <h3
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* 성과 요약: 전체 너비, 회색 배경, 파란 왼쪽 테두리 */}
+                {insightSections
+                  .filter((sec) => sec.title.includes('성과 요약'))
+                  .map((sec, i) => (
+                    <div
+                      key={`summary-${i}`}
                       style={{
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        color: 'var(--neutral-700)',
-                        marginBottom: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
+                        background: '#f9fafb',
+                        border: '1px solid var(--neutral-100)',
+                        borderLeft: '4px solid #3b82f6',
+                        borderRadius: '12px',
+                        padding: '20px',
                       }}
                     >
-                      <span>{getSectionIcon(sec.title)}</span>
-                      {sec.title}
-                    </h3>
-                    <div style={{ fontSize: '13px', lineHeight: '1.7', color: 'var(--neutral-600)' }}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({ children }) => (
-                            <p style={{ marginBottom: '8px' }}>{children}</p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul style={{ paddingLeft: '16px', marginBottom: '8px' }}>
-                              {children}
-                            </ul>
-                          ),
-                          li: ({ children }) => (
-                            <li style={{ marginBottom: '4px' }}>{children}</li>
-                          ),
+                      <h3
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          color: 'var(--neutral-700)',
+                          marginBottom: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
                         }}
                       >
-                        {sec.content.trim()}
-                      </ReactMarkdown>
+                        <span>{getSectionIcon(sec.title)}</span>
+                        {sec.title}
+                      </h3>
+                      <div style={{ fontSize: '13px', lineHeight: '1.75', color: 'var(--neutral-600)' }}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({ children }) => <p style={{ marginBottom: '8px' }}>{children}</p>,
+                            ul: ({ children }) => (
+                              <ul style={{ paddingLeft: '16px', marginBottom: '8px' }}>{children}</ul>
+                            ),
+                            li: ({ children }) => (
+                              <li style={{ marginBottom: '6px', lineHeight: '1.75' }}>{children}</li>
+                            ),
+                          }}
+                        >
+                          {sec.content.trim()}
+                        </ReactMarkdown>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+
+                {/* 주요 인사이트 + 개선 제안: 2열 나란히 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {insightSections
+                    .filter((sec) => !sec.title.includes('성과 요약'))
+                    .map((sec, i) => (
+                      <div
+                        key={`insight-${i}`}
+                        style={{
+                          background: 'white',
+                          border: '1px solid var(--neutral-100)',
+                          borderRadius: '12px',
+                          padding: '20px',
+                        }}
+                      >
+                        <h3
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            color: 'var(--neutral-700)',
+                            marginBottom: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <span>{getSectionIcon(sec.title)}</span>
+                          {sec.title}
+                        </h3>
+                        <div style={{ fontSize: '13px', lineHeight: '1.75', color: 'var(--neutral-600)' }}>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({ children }) => <p style={{ marginBottom: '8px' }}>{children}</p>,
+                              ul: ({ children }) => (
+                                <ul style={{ listStyle: 'none', padding: 0, marginBottom: '8px' }}>
+                                  {children}
+                                </ul>
+                              ),
+                              li: ({ children }) => (
+                                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                  <span style={{ color: 'var(--primary-500)', flexShrink: 0, fontSize: '18px', lineHeight: 1.4 }}>•</span>
+                                  <span style={{ lineHeight: '1.75' }}>{children}</span>
+                                </li>
+                              ),
+                            }}
+                          >
+                            {sec.content.trim()}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
             ) : (
               <div
@@ -501,7 +708,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, expiresAt, cr
 function SectionLabel({ children }: { children: string }) {
   return (
     <h2
-      className="text-[12px] font-semibold uppercase tracking-widest mb-3"
+      className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4"
       style={{ color: 'var(--neutral-400)' }}
     >
       {children}

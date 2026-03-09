@@ -44,7 +44,8 @@ export default function ReportPage() {
       {!loading && !error && conv && (
         <ReportView
           messages={conv.messages}
-          title="주간 리포트"
+          title={conv.title ?? ''}
+          conversationId={id}
           createdAt={new Date(conv.createdAt).toISOString()}
         />
       )}
