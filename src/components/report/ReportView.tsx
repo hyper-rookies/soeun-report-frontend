@@ -1,12 +1,11 @@
 'use client';
 
-import { FC, ReactNode, useState } from 'react';
+import { FC, ReactNode, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DataRenderer from '@/components/chat/DataRenderer';
 import { ChatMessage } from '@/types/chat';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { exportReportExcel } from '@/services/conversationService';
 
 interface ReportViewProps {
   messages: ChatMessage[];
@@ -18,16 +17,16 @@ interface ReportViewProps {
 
 const getReportTitle = (title: string, conversationId: string): string => {
   if (title && title !== '주간 광고 성과 리포트' && !title.startsWith('New')) {
-    return title
+    return title;
   }
-  const match = conversationId.match(/report_(\d{4})(\d{2})(\d{2})/)
-  if (!match) return title
-  const year = parseInt(match[1])
-  const month = parseInt(match[2])
-  const day = parseInt(match[3])
-  const weekOfMonth = Math.ceil(day / 7)
-  return `${year}년 ${month}월 ${weekOfMonth}주차 주간 리포트`
-}
+  const match = conversationId.match(/report_(\d{4})(\d{2})(\d{2})/);
+  if (!match) return title;
+  const year = parseInt(match[1]);
+  const month = parseInt(match[2]);
+  const day = parseInt(match[3]);
+  const weekOfMonth = Math.ceil(day / 7);
+  return `${year}년 ${month}월 ${weekOfMonth}주차 주간 리포트`;
+};
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -54,6 +53,39 @@ function formatDateKR(iso: string): string {
 
 function formatDateShort(dateStr: string): string {
   return dateStr.replace(/-/g, '.');
+}
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getThisWeek(): { start: string; end: string } {
+  const today = new Date();
+  const day = today.getDay();
+  const mon = new Date(today);
+  mon.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { start: toDateStr(mon), end: toDateStr(sun) };
+}
+
+function getLastWeek(): { start: string; end: string } {
+  const thisWeek = getThisWeek();
+  const mon = new Date(thisWeek.start);
+  mon.setDate(mon.getDate() - 7);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { start: toDateStr(mon), end: toDateStr(sun) };
+}
+
+function getThisMonth(): { start: string; end: string } {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return { start: toDateStr(start), end: toDateStr(end) };
 }
 
 interface KpiData {
@@ -154,7 +186,6 @@ function extractTableKpi(tableData: Record<string, unknown>[]): TableKpiData {
 
   const totalImpressions = googleImpressions + kakaoImpressions;
   const totalClicks = googleClicks + kakaoClicks;
-  const totalCost = googleCost + kakaoCost;
   const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
   const googleClickRatio = totalClicks > 0 ? (googleClicks / totalClicks) * 100 : 0;
 
@@ -231,8 +262,50 @@ const CHART_TITLES: Record<string, string> = {
   table: '일별 상세 지표',
 };
 
+const COL_LABEL_MAP: Record<string, string> = {
+  cost_micros: '광고비(원)',
+  impressions: '노출수',
+  clicks: '클릭수',
+  conversions: '전환수',
+  spending: '광고비(원)',
+};
+
+const PERIOD_LABEL: Record<string, string> = {
+  thisWeek: '이번 주',
+  lastWeek: '지난 주',
+  thisMonth: '이번 달',
+};
+
 function getSectionIcon(title: string) {
   return Object.entries(SECTION_ICONS).find(([k]) => title.includes(k))?.[1] ?? '📋';
+}
+
+function formatCellValue(col: string, val: unknown): string {
+  if (col === 'cost_micros') {
+    return Math.round(toNum(val) / 1_000_000).toLocaleString('ko-KR') + '원';
+  }
+  if (typeof val === 'string' && DATE_PATTERN.test(val)) {
+    return val.replace(/-/g, '.');
+  }
+  if (typeof val === 'number') {
+    return val.toLocaleString('ko-KR');
+  }
+  if (typeof val === 'string' && val !== '' && !isNaN(Number(val))) {
+    return Number(val).toLocaleString('ko-KR');
+  }
+  return String(val ?? '');
+}
+
+function isNumericCol(col: string, data: Record<string, unknown>[]): boolean {
+  if (col === 'cost_micros') return true;
+  for (const row of data.slice(0, 10)) {
+    const v = row[col];
+    if (v !== null && v !== undefined && v !== '') {
+      if (typeof v === 'string' && DATE_PATTERN.test(v)) return false;
+      return typeof v === 'number' || !isNaN(Number(v));
+    }
+  }
+  return false;
 }
 
 interface KpiCardProps {
@@ -267,67 +340,36 @@ function KpiCard({ label, value, unit, icon }: KpiCardProps) {
   );
 }
 
+const selectStyle: React.CSSProperties = {
+  border: '1px solid var(--neutral-200)',
+  borderRadius: '8px',
+  padding: '5px 10px',
+  fontSize: '13px',
+  background: 'white',
+  color: 'var(--neutral-700)',
+  cursor: 'pointer',
+  outline: 'none',
+};
+
+type MediaFilter = 'all' | 'google' | 'kakao';
+type PeriodFilter = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth';
+type CategoryFilter = 'all' | 'campaign' | 'adgroup' | 'keyword';
+type DeviceFilter = 'all' | 'pc' | 'mobile';
+
 export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationId = '', expiresAt, createdAt }) => {
-  const reportTitle = getReportTitle(title, conversationId)
+  const reportTitle = getReportTitle(title, conversationId);
   const [insightOpen, setInsightOpen] = useState(false);
 
-  const handlePdfSave = async () => {
-    const el = document.getElementById('report-content');
-    if (!el) return;
+  // Filter state
+  const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>('all');
 
-    const btn = document.getElementById('pdf-save-btn');
-    if (btn) btn.style.display = 'none';
-
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#f9fafb',
-      windowWidth: 1200,
-      ignoreElements: (element) => {
-        return element.tagName === 'FOREIGNOBJECT'
-      },
-      onclone: (clonedDoc) => {
-        const allElements = clonedDoc.querySelectorAll('*')
-        allElements.forEach((el) => {
-          const style = (el as HTMLElement).style
-          if (style.color?.includes('oklch') || style.color?.includes('lab')) {
-            style.color = '#1f2937'
-          }
-          if (style.backgroundColor?.includes('oklch') || style.backgroundColor?.includes('lab')) {
-            style.backgroundColor = '#ffffff'
-          }
-        })
-      },
-    });
-
-    if (btn) btn.style.display = '';
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    pdf.save(`주간리포트_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '').replace(/ /g, '')}.pdf`);
-  };
+  // Table state
+  const [search, setSearch] = useState('');
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const allData = messages.flatMap((m) => m.data ?? []);
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -335,16 +377,124 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
     (m) => m.role === 'assistant' && m.data && m.data.length > 0,
   );
 
-  const kpi = allData.length > 0 ? extractKpi(allData) : null;
   const dateRange = allData.length > 0 ? extractDateRange(allData) : null;
-  const tableMessage = messages.find((m) => m.chartType === 'table' && m.data && m.data.length > 0);
-  const tableKpi = tableMessage ? extractTableKpi(tableMessage.data as Record<string, unknown>[]) : null;
 
   const analysisContent = lastAssistant
     ? stripIntroLine(normalizeMarkdown(lastAssistant.content))
     : null;
 
   const insightSections = analysisContent ? parseInsightSections(analysisContent) : [];
+
+  // Filtered data (매체 + 기간 실제 동작)
+  const filteredData = useMemo(() => {
+    let data = allData;
+
+    if (mediaFilter !== 'all') {
+      data = data.filter((row) => {
+        if (mediaFilter === 'google') return 'cost_micros' in row;
+        if (mediaFilter === 'kakao') return 'spending' in row;
+        return true;
+      });
+    }
+
+    if (periodFilter !== 'all') {
+      let range: { start: string; end: string };
+      if (periodFilter === 'thisWeek') range = getThisWeek();
+      else if (periodFilter === 'lastWeek') range = getLastWeek();
+      else range = getThisMonth();
+
+      data = data.filter((row) => {
+        const dateVal = Object.values(row).find(
+          (v) => typeof v === 'string' && DATE_PATTERN.test(v as string),
+        ) as string | undefined;
+        if (!dateVal) return false;
+        return dateVal >= range.start && dateVal <= range.end;
+      });
+    }
+
+    return data;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allData.length, mediaFilter, periodFilter]);
+
+  const tableKpi = allData.length > 0 ? extractTableKpi(filteredData) : null;
+
+  // Dynamic table columns
+  const tableColumns = useMemo(() => {
+    const keys = new Set<string>();
+    filteredData.forEach((row) => Object.keys(row).forEach((k) => keys.add(k)));
+    return Array.from(keys);
+  }, [filteredData]);
+
+  // Searched + sorted display data
+  const displayData = useMemo(() => {
+    let data = filteredData;
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      data = data.filter((row) =>
+        Object.entries(row).some(
+          ([, v]) => typeof v === 'string' && !DATE_PATTERN.test(v) && v.toLowerCase().includes(q),
+        ),
+      );
+    }
+
+    if (sortCol) {
+      data = [...data].sort((a, b) => {
+        const av = a[sortCol];
+        const bv = b[sortCol];
+        const an = Number(av);
+        const bn = Number(bv);
+        if (!isNaN(an) && !isNaN(bn)) {
+          return sortDir === 'asc' ? an - bn : bn - an;
+        }
+        const as = String(av ?? '');
+        const bs = String(bv ?? '');
+        return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
+      });
+    }
+
+    return data;
+  }, [filteredData, search, sortCol, sortDir]);
+
+  const tableRows = displayData.slice(0, 200);
+  const hasMore = displayData.length > 200;
+
+  function handleSort(col: string) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  }
+
+  function resetFilters() {
+    setMediaFilter('all');
+    setPeriodFilter('all');
+    setCategoryFilter('all');
+    setDeviceFilter('all');
+  }
+
+  const hasActiveFilter =
+    mediaFilter !== 'all' || periodFilter !== 'all' || categoryFilter !== 'all' || deviceFilter !== 'all';
+
+  const [excelLoading, setExcelLoading] = useState(false);
+
+  async function handleExcelSave() {
+    if (!conversationId || excelLoading) return;
+    setExcelLoading(true);
+    try {
+      const { downloadUrl, fileName } = await exportReportExcel(conversationId);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = fileName;
+      a.click();
+    } catch {
+      alert('Excel 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setExcelLoading(false);
+    }
+  }
 
   return (
     <div id="report-content" className="min-h-full bg-gray-50 print:bg-white">
@@ -401,7 +551,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
               )}
             </div>
 
-            {/* 우측: 생성일/만료일 + PDF 버튼 */}
+            {/* 우측: 생성일/만료일 + Excel 버튼 */}
             <div className="flex flex-col items-end gap-3 shrink-0 print:items-start">
               <div className="text-right print:text-left">
                 {createdAt && (
@@ -416,8 +566,8 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                 )}
               </div>
               <button
-                id="pdf-save-btn"
-                onClick={handlePdfSave}
+                onClick={handleExcelSave}
+                disabled={!conversationId || excelLoading}
                 className="print-hide"
                 style={{
                   background: 'var(--primary-500)',
@@ -430,18 +580,40 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                   alignItems: 'center',
                   gap: '6px',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: !conversationId || excelLoading ? 'not-allowed' : 'pointer',
+                  opacity: !conversationId || excelLoading ? 0.6 : 1,
                 }}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                PDF 저장
+                {excelLoading ? (
+                  <>
+                    <svg
+                      className="w-4 h-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                      />
+                    </svg>
+                    생성 중...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    Excel 저장
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -450,6 +622,124 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
       {/* ── 본문 ── */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 32px 64px' }}>
+
+        {/* 필터바 */}
+        {allData.length > 0 && (
+          <div
+            className="print-hide mb-6"
+            style={{
+              background: 'white',
+              border: '1px solid var(--neutral-100)',
+              borderRadius: '12px',
+              padding: '14px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              flexWrap: 'wrap',
+              boxShadow: 'var(--shadow-xs)',
+            }}
+          >
+            {/* 매체 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+                매체
+              </label>
+              <select
+                value={mediaFilter}
+                onChange={(e) => setMediaFilter(e.target.value as MediaFilter)}
+                style={selectStyle}
+              >
+                <option value="all">전체</option>
+                <option value="google">구글</option>
+                <option value="kakao">카카오</option>
+              </select>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--neutral-100)' }} />
+
+            {/* 기간 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+                기간
+              </label>
+              <select
+                value={periodFilter}
+                onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+                style={selectStyle}
+              >
+                <option value="all">전체</option>
+                <option value="thisWeek">이번 주</option>
+                <option value="lastWeek">지난 주</option>
+                <option value="thisMonth">이번 달</option>
+              </select>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--neutral-100)' }} />
+
+            {/* 카테고리 (UI only) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+                카테고리
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                style={selectStyle}
+              >
+                <option value="all">전체</option>
+                <option value="campaign">캠페인</option>
+                <option value="adgroup">광고그룹</option>
+                <option value="keyword">키워드</option>
+              </select>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--neutral-100)' }} />
+
+            {/* 디바이스 (UI only) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+                디바이스
+              </label>
+              <select
+                value={deviceFilter}
+                onChange={(e) => setDeviceFilter(e.target.value as DeviceFilter)}
+                style={selectStyle}
+              >
+                <option value="all">전체</option>
+                <option value="pc">PC</option>
+                <option value="mobile">모바일</option>
+              </select>
+            </div>
+
+            {/* 초기화 버튼 */}
+            {hasActiveFilter && (
+              <button
+                onClick={resetFilters}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '5px 12px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: 'var(--neutral-500)',
+                  background: 'var(--neutral-50)',
+                  border: '1px solid var(--neutral-200)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+                필터 초기화
+              </button>
+            )}
+          </div>
+        )}
 
         {/* KPI 카드 섹션 */}
         {tableKpi && (
@@ -686,6 +976,161 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                 </div>
               </div>
             )}
+          </section>
+        )}
+
+        {/* 데이터 테이블 섹션 */}
+        {allData.length > 0 && (
+          <section className="mb-8 mt-10">
+            <SectionLabel>상세 데이터</SectionLabel>
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid var(--neutral-100)',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: 'var(--shadow-xs)',
+              }}
+            >
+              {/* 검색 입력 */}
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderBottom: '1px solid var(--neutral-100)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  style={{ color: 'var(--neutral-400)', flexShrink: 0 }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="캠페인명, 키워드 검색..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '13px',
+                    color: 'var(--neutral-700)',
+                    background: 'transparent',
+                  }}
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--neutral-400)', display: 'flex' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* 테이블 */}
+              <div style={{ overflowX: 'auto' }}>
+                {tableColumns.length === 0 || filteredData.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '48px',
+                      textAlign: 'center',
+                      fontSize: '13px',
+                      color: 'var(--neutral-400)',
+                    }}
+                  >
+                    데이터가 없습니다
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr>
+                        {tableColumns.map((col) => (
+                          <th
+                            key={col}
+                            onClick={() => handleSort(col)}
+                            style={{
+                              background: 'var(--neutral-50)',
+                              padding: '10px 14px',
+                              fontWeight: 600,
+                              fontSize: '12px',
+                              color: 'var(--neutral-600)',
+                              borderBottom: '1px solid var(--neutral-100)',
+                              textAlign: isNumericCol(col, filteredData) ? 'right' : 'left',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              {COL_LABEL_MAP[col] ?? col}
+                              <span style={{ color: 'var(--neutral-300)', fontSize: '10px' }}>
+                                {sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                              </span>
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map((row, ri) => (
+                        <tr
+                          key={ri}
+                          style={{ borderBottom: '1px solid var(--neutral-100)' }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLTableRowElement).style.background = 'var(--neutral-50)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLTableRowElement).style.background = 'transparent';
+                          }}
+                        >
+                          {tableColumns.map((col) => (
+                            <td
+                              key={col}
+                              style={{
+                                padding: '9px 14px',
+                                color: 'var(--neutral-700)',
+                                textAlign: isNumericCol(col, filteredData) ? 'right' : 'left',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {formatCellValue(col, row[col])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* 페이지네이션 안내 */}
+              {hasMore && (
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderTop: '1px solid var(--neutral-100)',
+                    fontSize: '12px',
+                    color: 'var(--neutral-400)',
+                    textAlign: 'center',
+                  }}
+                >
+                  총 {displayData.length.toLocaleString('ko-KR')}건 중 200건 표시
+                </div>
+              )}
+            </div>
           </section>
         )}
 

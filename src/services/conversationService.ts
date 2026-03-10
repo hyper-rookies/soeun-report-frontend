@@ -115,4 +115,15 @@ export const conversationService = {
   },
 };
 
+/**
+ * 리포트 Excel 내보내기
+ * 응답: { success: true, data: { downloadUrl, fileName } }
+ */
+export const exportReportExcel = async (
+  conversationId: string,
+): Promise<{ downloadUrl: string; fileName: string }> => {
+  const response = await apiClient.get(`/api/chat/report/${conversationId}/excel`);
+  return (response.data as { data: { downloadUrl: string; fileName: string } }).data;
+};
+
 export default conversationService;

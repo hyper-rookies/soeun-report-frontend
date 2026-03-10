@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        source: "/api/chat/:path*",
+        destination: "/api/chat/:path*",
+      },
+      {
         source: "/api/:path*",
         destination: `${backendUrl}/api/:path*`,
       },
