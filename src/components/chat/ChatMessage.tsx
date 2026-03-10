@@ -1,6 +1,7 @@
 'use client';
 
 import { FC } from 'react';
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
@@ -79,38 +80,39 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
   return (
     <div className="flex w-full justify-start mb-12 gap-4">
       {/* AI 아바타 */}
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: 'var(--primary-500)', boxShadow: 'var(--shadow-sm)' }}
-      >
-        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      </div>
+      <Image
+        src="/apple_logo.png"
+        alt="nADu"
+        width={32}
+        height={32}
+        className="shrink-0"
+        style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px', flexShrink: 0 }}
+        unoptimized
+      />
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div
-          className="text-[15px] leading-[1.8] tracking-[-0.01em] break-words"
+          className="chat-markdown text-[15px] leading-[1.8] tracking-[-0.01em] break-words"
           style={{ color: 'var(--neutral-700)' }}
         >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
-              ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-1.5">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-1.5">{children}</ol>,
-              li: ({ children }) => <li>{children}</li>,
+              p: ({ children }) => <p className="mb-6 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-5 mb-6 space-y-2.5">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 mb-6 space-y-2.5">{children}</ol>,
+              li: ({ children }) => <li className="leading-relaxed">{children}</li>,
               strong: ({ children }) => (
                 <strong className="font-semibold" style={{ color: 'var(--neutral-700)' }}>{children}</strong>
               ),
               h1: ({ children }) => (
-                <h1 className="text-[20px] font-bold mt-8 mb-4" style={{ color: 'var(--neutral-700)' }}>{children}</h1>
+                <h1 className="text-[20px] font-bold mt-10 mb-5" style={{ color: 'var(--neutral-700)' }}>{children}</h1>
               ),
               h2: ({ children }) => (
-                <h2 className="text-[18px] font-bold mt-6 mb-3" style={{ color: 'var(--neutral-700)' }}>{children}</h2>
+                <h2 className="text-[18px] font-bold mt-8 mb-4" style={{ color: 'var(--neutral-700)' }}>{children}</h2>
               ),
               h3: ({ children }) => (
-                <h3 className="text-[16px] font-bold mt-5 mb-2" style={{ color: 'var(--neutral-700)' }}>{children}</h3>
+                <h3 className="text-[16px] font-bold mt-6 mb-3" style={{ color: 'var(--neutral-700)' }}>{children}</h3>
               ),
               table: ({ children }) => (
                 <table style={{ borderCollapse: 'collapse', width: '100%', margin: '8px 0', fontSize: '13px' }}>

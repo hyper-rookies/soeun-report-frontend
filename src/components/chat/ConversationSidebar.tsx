@@ -831,14 +831,14 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
             icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             label="설정" onClick={() => {}} collapsed={!isOpen}
           />
-          {/* 내 프로필 + 로그아웃 드롭업 */}
+          {/* 내 프로필 + 로그아웃 드롭다운 (오른쪽) */}
           <div className="relative w-full flex justify-center">
             {profileMenuOpen && (
               <>
                 <div className="fixed inset-0 z-[3000]" onClick={() => setProfileMenuOpen(false)} />
                 <div
-                  className="absolute bottom-full mb-2 bg-white rounded-xl border border-[var(--border-default)] z-[3001] overflow-hidden"
-                  style={{ left: isOpen ? 0 : '50%', transform: isOpen ? 'none' : 'translateX(-50%)', minWidth: '140px', boxShadow: 'var(--shadow-xl)' }}
+                  className="absolute top-1/2 -translate-y-1/2 bg-white rounded-xl border border-[var(--border-default)] z-[3001] overflow-hidden"
+                  style={{ left: '100%', marginLeft: '12px', minWidth: '140px', boxShadow: 'var(--shadow-xl)' }}
                 >
                   <button
                     onClick={handleLogout}

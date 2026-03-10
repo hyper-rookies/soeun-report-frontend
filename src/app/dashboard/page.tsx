@@ -108,8 +108,8 @@ export default function DashboardPage() {
         {/* [1] 헤더 */}
         <div className="dashboard-header">
           <div>
-            <h1 className="dashboard-header__title">광고 성과 대시보드</h1>
-            <p className="dashboard-header__subtitle">Google · Kakao 통합 성과 · 기준일: {latestDate}</p>
+            <h1 className="dashboard-header__title">Today's 대시보드</h1>
+            <p className="dashboard-header__subtitle">Google · Kakao 키워드 통합 성과 · 기준일: {latestDate}</p>
           </div>
           <div className="dashboard-header__badge">
             <span className="pulse-dot" />
@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
         {/* [2] KPI 카드 5개 */}
         <div className="dashboard-section">
-          <p className="dashboard-section__label">광고비 요약</p>
+          
           <div className="dashboard-grid-5">
             {kpiCards.map((card) => {
               const badge = (() => {

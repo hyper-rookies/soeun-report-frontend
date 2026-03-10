@@ -287,7 +287,7 @@ function KpiCard({ label, value, unit, icon }: KpiCardProps) {
         boxShadow: 'var(--shadow-xs)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-sm)' }}>
         <span style={{ color: 'var(--neutral-400)', display: 'flex' }}>{icon}</span>
         <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-400)' }}>{label}</p>
       </div>
@@ -295,7 +295,7 @@ function KpiCard({ label, value, unit, icon }: KpiCardProps) {
         {value}
       </p>
       {unit && (
-        <p style={{ fontSize: '11px', color: 'var(--neutral-400)', marginTop: '4px' }}>{unit}</p>
+        <p style={{ fontSize: '11px', color: 'var(--neutral-400)', marginTop: 'var(--space-xs)' }}>{unit}</p>
       )}
     </div>
   );
@@ -304,7 +304,7 @@ function KpiCard({ label, value, unit, icon }: KpiCardProps) {
 const selectStyle: React.CSSProperties = {
   border: '1px solid var(--neutral-200)',
   borderRadius: '8px',
-  padding: '5px 10px',
+  padding: '4px 10px',
   fontSize: '13px',
   background: 'white',
   color: 'var(--neutral-700)',
@@ -544,33 +544,8 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              {/* 로고 */}
-              <div className="flex items-center gap-2 mb-3">
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'var(--primary-500)' }}
-                >
-                  <svg
-                    className="w-4 h-4 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[13px] font-medium" style={{ color: 'var(--neutral-400)' }}>
-                  SE Report AI
-                </span>
-              </div>
-
               {/* 제목 */}
-              <h1 className="text-[22px] font-bold mb-1" style={{ color: 'var(--neutral-700)' }}>
+              <h1 className="text-[22px] font-bold" style={{ color: 'var(--neutral-700)', letterSpacing: '-0.02em', marginBottom: 'var(--space-xs)' }}>
                 {reportTitle}
               </h1>
 
@@ -582,18 +557,19 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                   </span>
                 </p>
               )}
+
+              {createdAt && (
+                <p className="text-[13px]" style={{ color: 'var(--neutral-400)', marginTop: 'var(--space-xs)' }}>
+                  생성일&nbsp;:&nbsp;{formatDateKR(createdAt)}
+                </p>
+              )}
             </div>
 
-            {/* 우측: 생성일/만료일 + Excel 버튼 */}
+            {/* 우측: 만료일 + Excel 버튼 */}
             <div className="flex flex-col items-end gap-3 shrink-0 print:items-start">
               <div className="text-right print:text-left">
-                {createdAt && (
-                  <p className="text-[12px]" style={{ color: 'var(--neutral-400)' }}>
-                    생성일&nbsp;:&nbsp;{formatDateKR(createdAt)}
-                  </p>
-                )}
                 {expiresAt && (
-                  <p className="text-[12px] mt-0.5" style={{ color: 'var(--neutral-400)' }}>
+                  <p className="text-[13px]" style={{ color: 'var(--neutral-400)', marginTop: 'var(--space-xs)' }}>
                     만료일&nbsp;:&nbsp;{formatDateKR(expiresAt)}
                   </p>
                 )}
@@ -659,22 +635,23 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
         {/* 필터바 */}
         {allData.length > 0 && (
           <div
-            className="print-hide mb-6"
+            className="print-hide"
             style={{
               background: 'white',
               border: '1px solid var(--neutral-100)',
               borderRadius: '12px',
-              padding: '14px 20px',
+              padding: 'var(--space-md) var(--space-lg)',
               display: 'flex',
               alignItems: 'center',
-              gap: '16px',
+              gap: 'var(--space-lg)',
               flexWrap: 'wrap',
               boxShadow: 'var(--shadow-xs)',
+              marginBottom: 'var(--space-xl)',
             }}
           >
             {/* 매체 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
                 매체
               </label>
               <select
@@ -692,7 +669,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
             {/* 기간 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
                 기간
               </label>
               <select
@@ -711,7 +688,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
             {/* 카테고리 (UI only) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
                 카테고리
               </label>
               <select
@@ -730,7 +707,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
             {/* 디바이스 (UI only) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--neutral-500)', whiteSpace: 'nowrap' }}>
                 디바이스
               </label>
               <select
@@ -750,8 +727,8 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                 onClick={resetFilters}
                 style={{
                   marginLeft: 'auto',
-                  padding: '5px 12px',
-                  fontSize: '12px',
+                  padding: '4px 12px',
+                  fontSize: '13px',
                   fontWeight: 500,
                   color: 'var(--neutral-500)',
                   background: 'var(--neutral-50)',
@@ -776,7 +753,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
         {/* KPI 카드 섹션 */}
         {tableKpi && (
-          <section className="mb-10 print:mb-8">
+          <section style={{ marginBottom: 'var(--space-2xl)' }}>
             <SectionLabel>핵심 지표</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
               <KpiCard
@@ -815,7 +792,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
         {/* 차트 섹션 */}
         {chartMessages.length > 0 && (
-          <section className="mb-10 print:mb-8">
+          <section style={{ marginBottom: 'var(--space-2xl)' }}>
             <SectionLabel>데이터 차트</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
               {chartMessages.map((msg, i) => {
@@ -855,7 +832,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
         {/* AI 분석 섹션 */}
         {analysisContent && (
-          <section className="mb-8 print:mb-6 mt-10">
+          <section style={{ marginBottom: 'var(--space-2xl)', marginTop: 'var(--space-2xl)' }}>
             <SectionLabel>AI 분석</SectionLabel>
             {insightSections.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1014,7 +991,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
         {/* 데이터 테이블 섹션 */}
         {allData.length > 0 && (
-          <section className="mb-8 mt-10">
+          <section style={{ marginBottom: 'var(--space-2xl)', marginTop: 'var(--space-2xl)' }}>
             <SectionLabel>상세 데이터</SectionLabel>
             <div
               style={{
@@ -1028,7 +1005,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
               {/* 검색 입력 */}
               <div
                 style={{
-                  padding: '14px 16px',
+                  padding: '12px 16px',
                   borderBottom: '1px solid var(--neutral-100)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1096,7 +1073,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                             onClick={() => handleSort(col)}
                             style={{
                               background: 'var(--neutral-50)',
-                              padding: '10px 14px',
+                              padding: '10px 16px',
                               fontWeight: 600,
                               fontSize: '12px',
                               color: 'var(--neutral-600)',
@@ -1133,7 +1110,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                             <td
                               key={col}
                               style={{
-                                padding: '9px 14px',
+                                padding: '8px 16px',
                                 color: 'var(--neutral-700)',
                                 textAlign: isNumericCol(col, filteredData) ? 'right' : 'left',
                                 whiteSpace: 'nowrap',
@@ -1186,8 +1163,8 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 function SectionLabel({ children }: { children: string }) {
   return (
     <h2
-      className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4"
-      style={{ color: 'var(--neutral-400)' }}
+      className="text-sm font-semibold uppercase tracking-widest"
+      style={{ color: 'var(--neutral-400)', marginBottom: 'var(--space-lg)' }}
     >
       {children}
     </h2>

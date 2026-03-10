@@ -1,7 +1,5 @@
 'use client';
 
-import Image from 'next/image';
-
 const COGNITO_DOMAIN =
   'https://ap-northeast-2bzej4aji8.auth.ap-northeast-2.amazoncognito.com';
 const CLIENT_ID = '4hlmd3bqam0pjm1kdgv8lt4ki2';
@@ -54,31 +52,28 @@ export default function AuthPage() {
         >
           <img
             src="/apple_logo.png"
-            alt="AI 리포트 로고"
+            alt="nADu 로고"
             width={80}
             height={80}
             style={{ borderRadius: '16px' }}
           />
           <div style={{ textAlign: 'center' }}>
             <h2
-              className="text-[20px] font-bold tracking-[-0.02em]"
-              style={{ color: 'var(--neutral-700)' }}
+              className="text-[30px]"
+              style={{ color: 'var(--neutral-700)', fontFamily: 'var(--font-palette-mosaic)' }}
             >
-              AI 리포트 시스템
+              nADu
             </h2>
             <p
               className="text-[13px]"
-              style={{ color: 'var(--neutral-400)', marginTop: '4px' }}
+              style={{ color: 'var(--neutral-400)', marginTop: '10px' }}
             >
-              카카오 · 구글 광고 데이터를 AI로 분석하세요
+              NHN AD with U, 나두!
             </p>
           </div>
         </div>
 
-        {/* 구분선 */}
-        <div
-          style={{ width: '100%', height: '1px', background: 'var(--neutral-100)' }}
-        />
+
 
         {/* Google 로그인 버튼 */}
         <button
@@ -109,7 +104,7 @@ export default function AuthPage() {
               fillOpacity=".85"
             />
           </svg>
-          Google로 로그인
+          Google로 시작하기
         </button>
       </div>
     </div>

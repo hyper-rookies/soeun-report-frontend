@@ -1,14 +1,25 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import Image from 'next/image';
+import { Noto_Sans, Palette_Mosaic } from 'next/font/google';
+import Link from 'next/link';
 import './globals.css';
 import Providers from '@/components/Providers';
 import { Sidebar } from '@/components/layout/Sidebar';
 
-const inter = Inter({ subsets: ['latin'] });
+const notoSans = Noto_Sans({
+  subsets: ['latin'],
+  weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
+  display: 'swap',
+});
+
+const paletteMosaic = Palette_Mosaic({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-palette-mosaic',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: '광고 AI 리포터',
+  title: 'nADu',
   description: '카카오 키워드와 구글 검색광고 데이터를 자연어 대화로 분석하는 AI 리포트 시스템입니다.',
 };
 
@@ -19,33 +30,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className={inter.className}>
+      <body className={`${notoSans.className} ${paletteMosaic.variable}`}>
         <Providers>
           {/* 글로벌 헤더 — fixed 80px */}
           <header className="cds-header">
-            <div className="flex items-center gap-4">
-              {/* 🍎 사과 로고 크기를 헤더에 맞춰서 키움 (40x40), Next Image 컴포넌트로 변경 */}
-              <Image
-                src="/apple_logo.png"
-                alt="로고"
-                width={40}
-                height={40}
-                priority
-                unoptimized
-                style={{ borderRadius: '8px', objectFit: 'cover' }}
-              />
-
-              <div>
-                {/* 타이틀 텍스트도 살짝 키움 */}
-                <h1 className="text-[17px] font-bold leading-tight tracking-[-0.02em]"
-                    style={{ color: 'var(--neutral-700)' }}>
-                  광고 AI 리포터
-                </h1>
-                <p className="text-[12px] leading-tight mt-0.5" style={{ color: 'var(--neutral-400)' }}>
-                  대시보드를 보지 말고, 대화하세요.
-                </p>
-              </div>
-            </div>
+            <Link href="/" className="flex flex-col justify-center gap-2">
+              <h1 className="text-[26px] leading-tight"
+                  style={{ color: 'var(--neutral-700)', fontFamily: 'var(--font-palette-mosaic)' }}>
+                nADu
+              </h1>
+              <p className="text-[11px] leading-tight" style={{ color: 'var(--neutral-400)' }}>
+                NHN AD with U, 나두!
+              </p>
+            </Link>
           </header>
 
           {/* 헤더 아래 영역 */}

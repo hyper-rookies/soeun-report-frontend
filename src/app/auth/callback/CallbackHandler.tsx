@@ -6,7 +6,7 @@ import { setAccessToken } from '@/lib/auth';
 const MESSAGES = [
   'Google 계정을 확인하고 있어요.',
   'TIP. 대시보드를 보지 말고, 대화하세요.',
-  'TIP. 주간리포트 엑셀 Export 기능을 활용하세요.',
+  'TIP. 주간리포트 엑셀로 내보내기 기능을 활용하세요.',
   'TIP. 채팅방의 읽기 전용 URL을 공유하세요.',
 ];
 
@@ -65,10 +65,10 @@ export default function CallbackHandler() {
       {/* 서비스명 */}
       <div className="flex flex-col items-center gap-1">
         <span
-          className="text-2xl font-black tracking-tight"
-          style={{ color: 'var(--primary-500)' }}
+          className="text-2xl"
+          style={{ color: 'var(--primary-500)', fontFamily: 'var(--font-palette-mosaic)' }}
         >
-          SE Report
+          nADu
         </span>
         <span
           className="text-xs font-medium"
