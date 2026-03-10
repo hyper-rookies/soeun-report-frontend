@@ -101,37 +101,25 @@ interface KpiData {
 function extractKpi(allData: Record<string, unknown>[]): KpiData {
   let impressions = 0;
   let clicks = 0;
-  let conversions = 0;
   let googleCost = 0;
-  let kakaoSpending = 0;
-  let conversionsValue = 0;
+  let kakaoCost = 0;
   let hasGoogle = false;
   let hasKakao = false;
 
   for (const row of allData) {
-    if ('cost_micros' in row) {
-      hasGoogle = true;
-      impressions += toNum(row.impressions ?? 0);
-      clicks += toNum(row.clicks ?? row.click ?? 0);
-      conversions += toNum(row.conversions ?? 0);
-      googleCost += toNum(row.cost_micros ?? 0) / 1_000_000;
-      conversionsValue += toNum(row.conversions_value ?? 0);
+    if ('매체' in row) {
+      // pie 데이터
+      if (row['매체'] === '구글') { hasGoogle = true; googleCost += toNum(row['광고비(원)']); }
+      else if (row['매체'] === '카카오') { hasKakao = true; kakaoCost += toNum(row['광고비(원)']); }
+    } else if ('구글 노출' in row) {
+      // table 데이터
+      impressions += toNum(row['구글 노출']) + toNum(row['카카오 노출']);
+      clicks += toNum(row['구글 클릭']) + toNum(row['카카오 클릭']);
     }
-    if ('spending' in row) {
-      hasKakao = true;
-      impressions += toNum(row.impressions ?? row.impression ?? 0);
-      clicks += toNum(row.clicks ?? row.click ?? 0);
-    }
-    kakaoSpending += toNum(row.spending ?? 0);
   }
 
-  const totalCost = googleCost + kakaoSpending;
-  const roas =
-    conversionsValue > 0 && totalCost > 0
-      ? (conversionsValue / totalCost) * 100
-      : null;
-
-  return { impressions, clicks, conversions, totalCost, roas, hasGoogle, hasKakao };
+  const totalCost = googleCost + kakaoCost;
+  return { impressions, clicks, conversions: 0, totalCost, roas: null, hasGoogle, hasKakao };
 }
 
 interface TableKpiData {
@@ -149,39 +137,12 @@ function extractTableKpi(tableData: Record<string, unknown>[]): TableKpiData {
   let kakaoCost = 0, googleCost = 0;
 
   for (const row of tableData) {
-    const hasPlatformPrefix = Object.keys(row).some((k) => {
-      const lk = k.toLowerCase();
-      return lk.includes('google') || lk.includes('구글') || lk.includes('kakao') || lk.includes('카카오');
-    });
-
-    if (hasPlatformPrefix) {
-      for (const [key, val] of Object.entries(row)) {
-        const lk = key.toLowerCase();
-        if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('impression') || lk.includes('노출'))) {
-          googleImpressions += toNum(val);
-        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('impression') || lk.includes('노출'))) {
-          kakaoImpressions += toNum(val);
-        } else if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('click') || lk.includes('클릭'))) {
-          googleClicks += toNum(val);
-        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('click') || lk.includes('클릭'))) {
-          kakaoClicks += toNum(val);
-        } else if ((lk.includes('kakao') || lk.includes('카카오')) && (lk.includes('cost') || lk.includes('광고비') || lk.includes('spend'))) {
-          kakaoCost += toNum(val);
-        } else if ((lk.includes('google') || lk.includes('구글')) && (lk.includes('cost') || lk.includes('광고비'))) {
-          googleCost += toNum(val) / (lk.includes('micro') ? 1_000_000 : 1);
-        }
-      }
-    } else {
-      if ('cost_micros' in row) {
-        googleImpressions += toNum(row.impressions ?? 0);
-        googleClicks += toNum(row.clicks ?? row.click ?? 0);
-        googleCost += toNum(row.cost_micros) / 1_000_000;
-      } else if ('spending' in row) {
-        kakaoImpressions += toNum(row.impressions ?? row.impression ?? 0);
-        kakaoClicks += toNum(row.clicks ?? row.click ?? 0);
-        kakaoCost += toNum(row.spending);
-      }
-    }
+    googleImpressions += toNum(row['구글 노출']);
+    kakaoImpressions += toNum(row['카카오 노출']);
+    googleClicks += toNum(row['구글 클릭']);
+    kakaoClicks += toNum(row['카카오 클릭']);
+    googleCost += toNum(row['구글 광고비(원)']);
+    kakaoCost += toNum(row['카카오 광고비(원)']);
   }
 
   const totalImpressions = googleImpressions + kakaoImpressions;
@@ -385,15 +346,50 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
   const insightSections = analysisContent ? parseInsightSections(analysisContent) : [];
 
-  // Filtered data (매체 + 기간 실제 동작)
-  const filteredData = useMemo(() => {
-    let data = allData;
+  const tableMessage = messages.find((m) => m.chartType === 'table');
 
-    if (mediaFilter !== 'all') {
-      data = data.filter((row) => {
-        if (mediaFilter === 'google') return 'cost_micros' in row;
-        if (mediaFilter === 'kakao') return 'spending' in row;
-        return true;
+  // Filtered data (매체 + 기간 실제 동작) — chartType 기반 매체 판별
+  const filteredData = useMemo(() => {
+    let data: Record<string, unknown>[];
+
+    if (mediaFilter === 'all') {
+      data = messages.flatMap((m) => (m.data ?? []) as Record<string, unknown>[]);
+    } else {
+      data = messages.flatMap((m) => {
+        const rows = (m.data ?? []) as Record<string, unknown>[];
+        if (rows.length === 0) return [];
+        const chartType = m.chartType ?? '';
+
+        if (mediaFilter === 'google') {
+          if (chartType === 'bar') return rows;
+          if (chartType === 'table') {
+            return rows.map((row) => ({
+              날짜: row['날짜'],
+              '구글 노출': row['구글 노출'],
+              '구글 클릭': row['구글 클릭'],
+              '구글 광고비(원)': row['구글 광고비(원)'],
+            }));
+          }
+          if (chartType === 'pie') return rows.filter((row) => row['매체'] === '구글');
+          if (chartType === 'line') return rows.map((row) => ({ 날짜: row['날짜'], '구글 광고비(원)': row['구글 광고비(원)'] }));
+          return [];
+        }
+
+        if (mediaFilter === 'kakao') {
+          if (chartType === 'table') {
+            return rows.map((row) => ({
+              날짜: row['날짜'],
+              '카카오 노출': row['카카오 노출'],
+              '카카오 클릭': row['카카오 클릭'],
+              '카카오 광고비(원)': row['카카오 광고비(원)'],
+            }));
+          }
+          if (chartType === 'pie') return rows.filter((row) => row['매체'] === '카카오');
+          if (chartType === 'line') return rows.map((row) => ({ 날짜: row['날짜'], '카카오 광고비(원)': row['카카오 광고비(원)'] }));
+          return []; // bar는 구글 전용
+        }
+
+        return rows;
       });
     }
 
@@ -404,9 +400,9 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
       else range = getThisMonth();
 
       data = data.filter((row) => {
-        const dateVal = Object.values(row).find(
-          (v) => typeof v === 'string' && DATE_PATTERN.test(v as string),
-        ) as string | undefined;
+        const dateVal =
+          (row['날짜'] as string | undefined) ??
+          (Object.values(row).find((v) => typeof v === 'string' && DATE_PATTERN.test(v as string)) as string | undefined);
         if (!dateVal) return false;
         return dateVal >= range.start && dateVal <= range.end;
       });
@@ -414,9 +410,46 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
 
     return data;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allData.length, mediaFilter, periodFilter]);
+  }, [messages, mediaFilter, periodFilter]);
 
-  const tableKpi = allData.length > 0 ? extractTableKpi(filteredData) : null;
+  // KPI는 table 메시지 원본 데이터 기반으로 계산 (매체 컬럼 필터링 적용)
+  const tableKpi = useMemo(() => {
+    if (!tableMessage?.data?.length) return null;
+    const rows = tableMessage.data as Record<string, unknown>[];
+
+    let tableData: Record<string, unknown>[];
+    if (mediaFilter === 'google') {
+      tableData = rows.map((row) => ({
+        날짜: row['날짜'],
+        '구글 노출': row['구글 노출'],
+        '구글 클릭': row['구글 클릭'],
+        '구글 광고비(원)': row['구글 광고비(원)'],
+      }));
+    } else if (mediaFilter === 'kakao') {
+      tableData = rows.map((row) => ({
+        날짜: row['날짜'],
+        '카카오 노출': row['카카오 노출'],
+        '카카오 클릭': row['카카오 클릭'],
+        '카카오 광고비(원)': row['카카오 광고비(원)'],
+      }));
+    } else {
+      tableData = rows;
+    }
+
+    if (periodFilter !== 'all') {
+      let range: { start: string; end: string };
+      if (periodFilter === 'thisWeek') range = getThisWeek();
+      else if (periodFilter === 'lastWeek') range = getLastWeek();
+      else range = getThisMonth();
+      tableData = tableData.filter((row) => {
+        const dateVal = row['날짜'] as string | undefined;
+        if (!dateVal) return false;
+        return dateVal >= range.start && dateVal <= range.end;
+      });
+    }
+
+    return extractTableKpi(tableData);
+  }, [tableMessage, mediaFilter, periodFilter]);
 
   // Dynamic table columns
   const tableColumns = useMemo(() => {
