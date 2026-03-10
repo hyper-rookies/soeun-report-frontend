@@ -228,6 +228,15 @@ body {
   50%       { opacity: 0.5; transform: scale(0.85); }
 }
 
+@keyframes callback-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.callback-progress {
+  animation: callback-progress 4.5s linear forwards;
+}
+
 .animate-pulse {
   animation: pulse-dot 2s ease-in-out infinite;
 }
