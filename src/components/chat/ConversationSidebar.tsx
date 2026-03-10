@@ -354,7 +354,7 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
-    router.push('/auth/login');
+    router.push('/auth');
   };
 
   const handleNew = async () => { await onNewConversation(); };

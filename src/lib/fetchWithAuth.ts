@@ -19,7 +19,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
       });
     } catch {
       clearTokens();
-      window.location.href = '/auth/login';
+      window.location.href = '/auth';
     }
   }
 

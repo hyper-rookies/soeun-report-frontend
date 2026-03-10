@@ -43,7 +43,7 @@ apiClient.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest._retry &&
       typeof window !== 'undefined' &&
-      window.location.pathname !== '/auth/login'
+      window.location.pathname !== '/auth'
     ) {
       originalRequest._retry = true;
       try {
@@ -52,7 +52,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch {
         clearTokens();
-        window.location.href = '/auth/login';
+        window.location.href = '/auth';
       }
     }
     return Promise.reject(error);

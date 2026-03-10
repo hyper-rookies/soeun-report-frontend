@@ -19,7 +19,7 @@ axiosInstance.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest._retry &&
       typeof window !== 'undefined' &&
-      window.location.pathname !== '/auth/login'
+      window.location.pathname !== '/auth'
     ) {
       originalRequest._retry = true;
       try {
@@ -28,7 +28,7 @@ axiosInstance.interceptors.response.use(
         return axiosInstance(originalRequest);
       } catch {
         clearTokens();
-        window.location.href = '/auth/login';
+        window.location.href = '/auth';
       }
     }
     return Promise.reject(error);
