@@ -21,6 +21,10 @@ const paletteMosaic = Palette_Mosaic({
 export const metadata: Metadata = {
   title: 'nADu',
   description: '카카오 키워드와 구글 검색광고 데이터를 자연어 대화로 분석하는 AI 리포트 시스템입니다.',
+  icons: {
+    icon: '/apple_logo.png',
+    apple: '/apple_logo.png',
+  },
 };
 
 export default function RootLayout({

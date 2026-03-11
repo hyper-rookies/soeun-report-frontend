@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType } from '@/types/chat';
 import DataRenderer from './DataRenderer';
+import { sanitizeStreamingMarkdown } from '@/utils/markdownUtils';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -137,7 +138,9 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
             }}
           >
             {streamingDisplayText !== undefined
-              ? normalizeMarkdown(streamingDisplayText)
+              ? (isStreaming
+                  ? sanitizeStreamingMarkdown(normalizeMarkdown(streamingDisplayText))
+                  : normalizeMarkdown(streamingDisplayText))
               : processedContent}
           </ReactMarkdown>
           {isStreaming && (

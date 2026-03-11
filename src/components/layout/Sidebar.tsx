@@ -14,7 +14,7 @@ export const Sidebar = () => {
   const setSidebarOpen   = useChatStore((s) => s.setSidebarOpen);
   const conversationId   = useChatStore((s) => s.conversationId);
 
-  if (pathname.startsWith('/auth')) return null;
+  if (pathname.startsWith('/auth') || pathname.startsWith('/shared')) return null;
 
   const handleNewConversation = async () => {
     setSidebarOpen(false);
