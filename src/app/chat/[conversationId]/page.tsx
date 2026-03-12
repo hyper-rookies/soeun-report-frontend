@@ -2,10 +2,12 @@
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AxiosError } from 'axios';
 import { useChatStore } from '@/store';
 import { apiClient, conversationService } from '@/services';
 import { API_ENDPOINTS } from '@/utils/constants';
 import { ChatContainer } from '@/components/chat/ChatContainer';
+import ForbiddenError from '@/components/chat/ForbiddenError';
 
 export default function ChatPage() {
   const params = useParams();
@@ -19,6 +21,7 @@ export default function ChatPage() {
   const setLoading        = useChatStore((s) => s.setLoading);
   const setError          = useChatStore((s) => s.setError);
 
+  const [isForbidden, setIsForbidden] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isCopied, setIsCopied] = useState(false);
@@ -40,6 +43,7 @@ export default function ChatPage() {
     clearMessages();
     setLoading(true);
     setError(null);
+    setIsForbidden(false);
 
     let cancelled = false;
 
@@ -49,7 +53,13 @@ export default function ChatPage() {
         if (!cancelled) setConversation(conv);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : '대화를 불러올 수 없어요.');
+        if (cancelled) return;
+        const status = (err as AxiosError)?.response?.status;
+        if (status === 403 || status === 404) {
+          setIsForbidden(true);
+        } else {
+          setError(err instanceof Error ? err.message : '대화를 불러올 수 없어요.');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -78,12 +88,16 @@ export default function ChatPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--white)] relative">
-      
+
       {/* 액션바 영역(shrink-0 flex items-center justify-end...) 전체 삭제 완료! */}
 
-      {/* 채팅 컨테이너 */}
+      {/* 채팅 컨테이너 또는 에러 */}
       <div className="flex-1 overflow-hidden relative">
-        <ChatContainer conversationId={conversationId} presetValue={presetValue} />
+        {isForbidden ? (
+          <ForbiddenError />
+        ) : (
+          <ChatContainer conversationId={conversationId} presetValue={presetValue} />
+        )}
       </div>
 
       {/* 제미나이 스타일 공유 모달 (현재는 띄울 버튼이 없지만 기능은 유지) */}
