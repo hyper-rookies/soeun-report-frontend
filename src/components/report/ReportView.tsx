@@ -13,6 +13,7 @@ interface ReportViewProps {
   conversationId?: string;
   expiresAt?: string;
   createdAt?: string;
+  shareToken?: string;
 }
 
 const getReportTitle = (title: string, conversationId: string): string => {
@@ -317,7 +318,7 @@ type PeriodFilter = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth';
 type CategoryFilter = 'all' | 'campaign' | 'adgroup' | 'keyword';
 type DeviceFilter = 'all' | 'pc' | 'mobile';
 
-export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationId = '', expiresAt, createdAt }) => {
+export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationId = '', expiresAt, createdAt, shareToken }) => {
   const reportTitle = getReportTitle(title, conversationId);
   const [insightOpen, setInsightOpen] = useState(false);
 
@@ -512,6 +513,20 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
     mediaFilter !== 'all' || periodFilter !== 'all' || categoryFilter !== 'all' || deviceFilter !== 'all';
 
   const [excelLoading, setExcelLoading] = useState(false);
+  const [shareModalUrl, setShareModalUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  function handleShare() {
+    if (!shareToken) return;
+    setShareModalUrl(`${window.location.origin}/shared/${shareToken}`);
+  }
+
+  async function handleShareCopy() {
+    if (!shareModalUrl) return;
+    await navigator.clipboard.writeText(shareModalUrl);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  }
 
   async function handleExcelSave() {
     if (!conversationId || excelLoading) return;
@@ -574,6 +589,32 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-2">
+              {shareToken && (
+                <button
+                  onClick={handleShare}
+                  className="print-hide"
+                  style={{
+                    background: 'var(--neutral-100)',
+                    color: 'var(--neutral-600)',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid var(--neutral-200)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  공유
+                </button>
+              )}
               <button
                 onClick={handleExcelSave}
                 disabled={!conversationId || excelLoading}
@@ -624,6 +665,7 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
                   </>
                 )}
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1156,6 +1198,92 @@ export const ReportView: FC<ReportViewProps> = ({ messages, title, conversationI
           AI 리포트는 부정확할 수 있습니다. 중요한 수치는 광고 대시보드를 직접 확인하세요.
         </footer>
       </div>
+
+      {shareModalUrl && (
+        <div
+          className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShareModalUrl(null)}
+        >
+          <div
+            className="relative bg-white rounded-[28px] shadow-[var(--shadow-2xl)] border border-[var(--border-default)] w-[520px] max-w-[90vw]"
+            style={{ padding: 'var(--space-2xl)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShareModalUrl(null)}
+              className="absolute top-6 right-6 p-2 rounded-full text-[var(--neutral-400)] hover:bg-[var(--neutral-50)] hover:text-[var(--neutral-700)] transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="mb-10">
+              <h3 className="text-[22px] font-bold text-[var(--neutral-700)] mb-3">
+                읽기 전용 공유 링크
+              </h3>
+              <p className="text-[14px] text-[var(--neutral-400)] leading-relaxed">
+                로그인하지 않은 사람들도 리포트 내용을 확인할 수 있어요.
+              </p>
+            </div>
+
+            <div
+              className="flex items-center border border-[var(--border-strong)] rounded-[20px] mb-8"
+              style={{ padding: '0 var(--space-sm)', height: '72px', backgroundColor: 'var(--neutral-50)' }}
+            >
+              <input
+                readOnly
+                value={shareModalUrl}
+                className="flex-1 bg-transparent border-none outline-none text-[14px] text-[var(--neutral-600)] truncate px-6"
+              />
+              <button
+                onClick={handleShareCopy}
+                style={{
+                  backgroundColor: shareCopied ? '#35c066' : '#313131',
+                  color: 'white',
+                  height: '52px',
+                  minWidth: '90px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  borderRadius: '80px',
+                  marginRight: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                {shareCopied ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    완료 !
+                  </>
+                ) : (
+                  '링크 복사'
+                )}
+              </button>
+            </div>
+
+            <div
+              className="flex gap-3 rounded-2xl"
+              style={{ padding: 'var(--space-md)', background: 'var(--primary-50)', color: 'var(--primary-700)' }}
+            >
+              <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-[13px] leading-relaxed">
+                <p className="font-bold mb-1">링크는 30일간 유효해요.</p>
+                <p className="opacity-80">링크를 가진 누구나 리포트 내용을 볼 수 있어요.</p>
+                <p className="opacity-80">민감한 정보가 포함되어 있다면 공유 전 다시 한번 확인해 주세요.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -720,6 +720,23 @@ export const ConversationSidebar: FC<ConversationSidebarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       <span className="text-[12px] font-medium truncate flex-1">{title}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const token = String(item.shareToken ?? '');
+                          if (token) setShareUrl(`${window.location.origin}/shared/${token}`);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 w-6 h-6 flex items-center justify-center rounded"
+                        style={{ color: 'var(--neutral-400)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                        onMouseOver={(e) => { e.currentTarget.style.color = 'var(--neutral-600)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.color = 'var(--neutral-400)'; }}
+                        title="공유 링크 복사"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                      </button>
                     </div>
                   );
                 })

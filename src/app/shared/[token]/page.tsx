@@ -12,7 +12,8 @@ interface SharedMessage {
   role: string;
   content: string;
   timestamp?: number;
-  structuredData?: Record<string, unknown>[];
+  data?: Record<string, unknown>[];
+  structuredData?: Record<string, unknown>[];  // 하위 호환용 (기존 채팅 데이터)
   chartType?: 'line' | 'bar' | 'pie' | 'table';
 }
 
@@ -22,10 +23,12 @@ interface SharedConversationRaw {
   createdAt?: string;
   userId?: string;
   title?: string;
+  conversationId?: string;
   conversation?: {
     userId?: string;
     title?: string;
     createdAt?: string;
+    conversationId?: string;
   };
 }
 
@@ -35,6 +38,7 @@ interface SharedConversation {
   createdAt?: string;
   title: string;
   isSystemReport: boolean;
+  conversationId?: string;
 }
 
 type ErrorType = 'EXPIRED_TOKEN' | 'INVALID_TOKEN' | 'GENERIC';
@@ -133,21 +137,30 @@ export default function SharedPage() {
         const json = await res.json();
         const raw = (json.data ?? json) as SharedConversationRaw;
 
-        const messages: ChatMessageType[] = raw.messages.map((msg) => ({
-          role: msg.role as ChatMessageType['role'],
-          content: msg.content,
-          timestamp: msg.timestamp ?? 0,
-          ...(msg.structuredData?.length ? { data: msg.structuredData } : {}),
-          ...(msg.chartType ? { chartType: msg.chartType } : {}),
-        }));
+        const messages: ChatMessageType[] = raw.messages.map((msg) => {
+          // 백엔드 MessageItem은 "data" 필드명 사용
+          // 기존 채팅 공유는 "structuredData" 필드명 사용 → 둘 다 지원
+          const chartData = msg.data ?? msg.structuredData;
+          return {
+            role: msg.role as ChatMessageType['role'],
+            content: msg.content,
+            timestamp: msg.timestamp ?? 0,
+            ...(chartData?.length ? { data: chartData } : {}),
+            ...(msg.chartType ? { chartType: msg.chartType } : {}),
+          };
+        });
 
+        const conversationId = raw.conversation?.conversationId ?? raw.conversationId;
         const userId = raw.conversation?.userId ?? raw.userId ?? '';
         const title = raw.conversation?.title ?? raw.title ?? '';
         const createdAt = raw.conversation?.createdAt ?? raw.createdAt;
         const isSystemReport =
-          userId === 'system' || title.startsWith('주간 자동 리포트');
+          userId === 'system' ||
+          title.includes('주간 리포트') ||
+          title.includes('주간 자동 리포트') ||
+          (typeof conversationId === 'string' && conversationId.startsWith('report_'));
 
-        setData({ messages, expiresAt: raw.expiresAt, createdAt, title, isSystemReport });
+        setData({ messages, expiresAt: raw.expiresAt, createdAt, title, isSystemReport, conversationId });
       } catch {
         setErrorType('GENERIC');
       } finally {
@@ -167,6 +180,7 @@ export default function SharedPage() {
           title={data.title}
           expiresAt={data.expiresAt}
           createdAt={data.createdAt}
+          conversationId={data.conversationId}
         />
       </div>
     );
