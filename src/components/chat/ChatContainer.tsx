@@ -49,8 +49,10 @@ export const ChatContainer: FC<ChatContainerProps> = ({ conversationId, presetVa
         setConversationId(targetId);
         addConversation(summary);
         
-        // 3. URL 변경 (replace 후에도 isLoading 상태가 유지되어 '분석 중...'이 계속 뜹니다)
+        // 3. URL 변경
         router.replace(`/chat/${targetId}`);
+        await new Promise(resolve => setTimeout(resolve, 0)); // 재마운트 대기
+        store.setLoading(true); // 재마운트 후 store 재확인용
       } catch (err) {
         console.error('[ChatContainer] 생성 실패:', err);
         store.setError('대화를 시작하지 못했습니다. 다시 시도해주세요.');

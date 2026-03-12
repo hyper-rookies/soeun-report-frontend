@@ -158,7 +158,6 @@ export const useChatStore = create<ChatState>()(
         partialize: (state) => ({
           // 'new' 및 UI 일시적 상태(toastMessage 등)는 저장하지 않음
           conversationId: state.conversationId === 'new' ? null : state.conversationId,
-          messages: state.messages,
           sidebarOpen: state.sidebarOpen,
         }),
       }

@@ -54,6 +54,12 @@ export const chatService = {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
+          // 빈 줄 = SSE 이벤트 경계 → currentEventType 리셋
+          if (line.trim() === '') {
+            currentEventType = '';
+            continue;
+          }
+
           // event: 라인 → 무조건 타입 갱신 (빈 줄 없이 연속으로 와도 처리)
           if (line.startsWith('event:')) {
             currentEventType = line.substring(6).trim();
@@ -61,8 +67,13 @@ export const chatService = {
           }
 
           if (line.startsWith('data:')) {
-            const data = line.substring(5).trim();
-            if (!data) continue;
+            // SSE 스펙: "data:" 다음 공백 1개만 제거 (trim 금지 - 공백 청크 유실 방지)
+            const raw = line.substring(5);
+            const data = raw.startsWith(' ') ? raw.substring(1) : raw;
+
+            // 텍스트 청크는 빈 문자열도 허용 (공백만 있는 청크 보존)
+            // status/data/done/error 이벤트만 빈 값 스킵
+            if (!data && currentEventType !== '' && currentEventType !== 'message') continue;
 
             switch (currentEventType) {
               case 'done':
@@ -74,6 +85,7 @@ export const chatService = {
                 return;
 
               case 'status':
+                if (!data) break;
                 try {
                   const parsed = JSON.parse(data);
                   if (parsed?.step && parsed?.message) {
@@ -83,6 +95,7 @@ export const chatService = {
                 break;
 
               case 'data':
+                if (!data) break;
                 try {
                   const parsed = JSON.parse(data);
                   if (
@@ -100,15 +113,12 @@ export const chatService = {
                 break;
 
               default:
-                // request_type: 으로 시작하는 내부 분류 텍스트 필터링
                 if (data.startsWith('request_type:')) break;
-                // 'message' 또는 타입 없음 → 텍스트 청크
                 onData(data);
                 break;
             }
           }
 
-          // 빈 줄은 무시 (event: 라인에서 이미 타입 갱신하므로 리셋 불필요)
         }
       }
 

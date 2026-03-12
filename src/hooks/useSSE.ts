@@ -25,21 +25,19 @@ export const useSSE = (conversationId: string) => {
   const rawTextRef = useRef('');           // SSE로 받은 전체 텍스트
   const displayTextRef = useRef('');       // 화면에 표시 중인 텍스트
   const [displayText, setDisplayText] = useState('');
-  const typewriterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const TICK_INTERVAL_MS = 28;
+  const CHARS_NORMAL = 2;
+  const CHARS_CATCHUP = 5;
+  const CHARS_TURBO = 12;
   const isDoneRef = useRef(false);
   const isFirstChunkRef = useRef(true);
-  const loadingStartTimeRef = useRef<number>(0);
-  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const MIN_LOADING_MS = 5000; // 최소 로딩 표시 시간
 
   const closeConnection = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-    }
-    if (loadingTimerRef.current) {
-      clearTimeout(loadingTimerRef.current);
-      loadingTimerRef.current = null;
     }
     setLoading(false);
   }, [setLoading]);
@@ -47,6 +45,10 @@ export const useSSE = (conversationId: string) => {
   useEffect(() => {
     return () => {
       closeConnection();
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
     };
   }, [closeConnection]);
 
@@ -74,20 +76,16 @@ export const useSSE = (conversationId: string) => {
       displayTextRef.current = '';
       isDoneRef.current = false;
       isFirstChunkRef.current = true;
-      if (typewriterTimerRef.current) {
-        clearInterval(typewriterTimerRef.current);
-        typewriterTimerRef.current = null;
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
-      if (loadingTimerRef.current) {
-        clearTimeout(loadingTimerRef.current);
-        loadingTimerRef.current = null;
-      }
+      lastFrameTimeRef.current = 0;
       setDisplayText('');
       setIsStreaming(false);
       setChartPayload(null);
       chartPayloadRef.current = null;
       setStatusMessage(null);
-      loadingStartTimeRef.current = Date.now();
 
       store.setLoading(true);
       store.setError(null);
@@ -109,18 +107,15 @@ export const useSSE = (conversationId: string) => {
 
       // ── 타이머 시작 ──────────────────────────────────────────────────
       const startTypewriter = () => {
-        if (typewriterTimerRef.current) return;
+        if (rafIdRef.current) return;
 
-        typewriterTimerRef.current = setInterval(() => {
+        const tick = (timestamp: number) => {
           const raw = rawTextRef.current;
           const displayed = displayTextRef.current;
+          const lag = raw.length - displayed.length;
 
-          if (isDoneRef.current) {
-            // done 수신 → 즉시 전체 표시 후 타이머 종료
-            clearInterval(typewriterTimerRef.current!);
-            typewriterTimerRef.current = null;
-            displayTextRef.current = raw;
-            setDisplayText(raw);
+          if (isDoneRef.current && lag === 0) {
+            rafIdRef.current = null;
             if (chartPayloadRef.current) {
               store.setLastMessageData(
                 chartPayloadRef.current.data,
@@ -135,12 +130,28 @@ export const useSSE = (conversationId: string) => {
             return;
           }
 
-          if (displayed.length < raw.length) {
-            const next = raw.slice(0, displayed.length + 1);
-            displayTextRef.current = next;
-            setDisplayText(next);
+          if (lag > 0) {
+            const elapsed = timestamp - lastFrameTimeRef.current;
+
+            if (elapsed >= TICK_INTERVAL_MS) {
+              lastFrameTimeRef.current = timestamp;
+
+              const charsToAdd = lag >= 120
+                ? CHARS_TURBO
+                : lag >= 40
+                  ? CHARS_CATCHUP
+                  : CHARS_NORMAL;
+
+              const next = raw.slice(0, displayed.length + charsToAdd);
+              displayTextRef.current = next;
+              setDisplayText(next);
+            }
           }
-        }, 16); // ~60fps
+
+          rafIdRef.current = requestAnimationFrame(tick);
+        };
+
+        rafIdRef.current = requestAnimationFrame(tick);
       };
 
       try {
@@ -154,13 +165,8 @@ export const useSSE = (conversationId: string) => {
 
             if (isFirstChunkRef.current) {
               isFirstChunkRef.current = false;
-              const elapsed = Date.now() - loadingStartTimeRef.current;
-              const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
-              loadingTimerRef.current = setTimeout(() => {
-                store.setLoading(false);
-                setIsStreaming(true);
-                setStatusMessage(null);
-              }, remaining);
+              setIsStreaming(true);
+              setStatusMessage(null);
             }
 
             startTypewriter();

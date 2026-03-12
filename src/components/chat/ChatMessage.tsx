@@ -13,6 +13,7 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   streamingDisplayText?: string;
   chartPayload?: { chartType: 'line' | 'bar' | 'pie' | 'table'; data: any[] } | null;
+  showSpinner?: boolean;
 }
 
 // ── ReactMarkdown 유틸 ───────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ function cleanContent(content: string): string {
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
-export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false, streamingDisplayText, chartPayload }) => {
+export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false, streamingDisplayText, chartPayload, showSpinner = false }) => {
   const isUser = message.role === 'user';
 
   const processedContent = isUser
@@ -150,6 +151,14 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
             />
           )}
         </div>
+
+        {showSpinner && (
+          <div className="flex gap-1.5 mt-3">
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-400)', animationDelay: '300ms' }} />
+          </div>
+        )}
 
         {(() => {
           const effective = chartPayload ?? (
