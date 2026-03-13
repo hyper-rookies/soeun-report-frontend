@@ -44,13 +44,55 @@ function cleanContent(content: string): string {
     .trim();
 }
 
+const KNOWN_XML_TAGS = ['chartType', 'chartData'];
+const VALID_CHART_TYPES = ['line', 'bar', 'pie', 'table'] as const;
+
+function parseChartTags(text: string): {
+  cleanText: string;
+  chartType?: 'line' | 'bar' | 'pie' | 'table';
+  chartData?: any[];
+} {
+  const chartTypeMatch = text.match(/<chartType>([\s\S]*?)<\/chartType>/);
+  const chartDataMatch = text.match(/<chartData>([\s\S]*?)<\/chartData>/);
+
+  // 완성된 태그 제거 후, 불완전한 태그(스트리밍 중 잘린 것)도 제거
+  let cleanText = text;
+  for (const tag of KNOWN_XML_TAGS) {
+    cleanText = cleanText
+      .replace(new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'g'), '')
+      .replace(new RegExp(`<${tag}>[\\s\\S]*$`), ''); // 닫는 태그 없는 불완전 태그
+  }
+  cleanText = cleanText.trim();
+
+  const rawType = chartTypeMatch?.[1]?.trim();
+  const chartType = VALID_CHART_TYPES.includes(rawType as any)
+    ? (rawType as 'line' | 'bar' | 'pie' | 'table')
+    : undefined;
+
+  let chartData: any[] | undefined;
+  if (chartDataMatch?.[1]) {
+    try {
+      const parsed = JSON.parse(chartDataMatch[1].trim());
+      if (Array.isArray(parsed)) chartData = parsed;
+    } catch {
+      // JSON 파싱 실패 시 무시
+    }
+  }
+
+  return { cleanText, chartType, chartData };
+}
+
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
 export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false, streamingDisplayText, chartPayload, showSpinner = false }) => {
   const isUser = message.role === 'user';
 
+  // AI 메시지에서 XML 태그 파싱 및 제거
+  const { cleanText: rawContent, chartType: parsedChartType, chartData: parsedChartData } =
+    !isUser ? parseChartTags(message.content) : { cleanText: message.content, chartType: undefined, chartData: undefined };
+
   const processedContent = isUser
     ? message.content.replace(/\\n/g, '\n').replace(/\\r/g, '')
-    : cleanContent(normalizeMarkdown(message.content));
+    : cleanContent(normalizeMarkdown(rawContent));
 
   // 스트리밍 중이고 displayText도 없으면 렌더링 스킵
   if (!isUser && streamingDisplayText === undefined && !message.content) {
@@ -140,8 +182,8 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
           >
             {streamingDisplayText !== undefined
               ? (isStreaming
-                  ? sanitizeStreamingMarkdown(normalizeMarkdown(streamingDisplayText))
-                  : normalizeMarkdown(streamingDisplayText))
+                  ? sanitizeStreamingMarkdown(normalizeMarkdown(parseChartTags(streamingDisplayText).cleanText))
+                  : normalizeMarkdown(parseChartTags(streamingDisplayText).cleanText))
               : processedContent}
           </ReactMarkdown>
           {isStreaming && (
@@ -164,7 +206,9 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, isStreaming = false
           const effective = chartPayload ?? (
             message.chartType && message.data?.length
               ? { chartType: message.chartType, data: message.data }
-              : null
+              : parsedChartType && parsedChartData?.length
+                ? { chartType: parsedChartType, data: parsedChartData }
+                : null
           );
           return effective && effective.data.length > 0 ? (
             <DataRenderer chartType={effective.chartType} data={effective.data} />
